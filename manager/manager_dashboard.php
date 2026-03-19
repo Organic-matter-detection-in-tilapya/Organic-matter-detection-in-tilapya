@@ -5,7 +5,7 @@ require_once '../config/config.php';
 
 // Check if user is logged in and is manager - REMOVE the simulation override
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'manager') {
-    header("Location: login.php");
+    header(" /auth/login.php");
     exit();
 }
 

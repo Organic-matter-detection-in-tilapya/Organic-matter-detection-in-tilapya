@@ -1,90 +1,86 @@
-<?php
-session_start();
-require_once '../config/config.php';
+    <?php
+    session_start();
+    require_once 'config/config.php';
 
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
+    error_reporting(E_ALL);
+    ini_set('display_errors', 1);
 
-// Start output buffering - para sure walang output before headers
-ob_start();
+    ob_start();
 
+    $error = '';
 
-$error = '';
-
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $email = trim($_POST['email']);
-    $password = $_POST['password'];
-    
-    if (empty($email) || empty($password)) {
-        $error = "Please fill in all fields";
-    } else {
-        try {
-            // Get user by email
-            $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ?");
-            $stmt->execute([$email]);
-            $user = $stmt->fetch();
-            
-            if ($user) {
-                // Verify password
-                if (password_verify($password, $user['password'])) {
-                    // Set session
-                    $_SESSION['user_id'] = $user['user_id'];
-                    $_SESSION['full_name'] = $user['full_name'];
-                    $_SESSION['email'] = $user['email'];
-                    $_SESSION['role'] = $user['role'];
-                    $_SESSION['assigned_pond'] = $user['assigned_pond'];
-                    
-                    // Update last login
-                    $update = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE user_id = ?");
-                    $update->execute([$user['user_id']]);
-                    
-                    // Log activity
-                    try {
-                        $log = $pdo->prepare("INSERT INTO activities (user_id, action, ip_address, created_at) VALUES (?, 'login', ?, NOW())");
-                        $log->execute([$user['user_id'], $_SERVER['REMOTE_ADDR']]);
-                    } catch(Exception $e) {
-                        // Skip if activities table doesn't exist
+    if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+        $email = trim($_POST['email']);
+        $password = $_POST['password'];
+        
+        if (empty($email) || empty($password)) {
+            $error = "Please fill in all fields";
+        } else {
+            try {
+                // Get user by email
+                $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ?");
+                $stmt->execute([$email]);
+                $user = $stmt->fetch();
+                
+                if ($user) {
+                    // Verify password
+                    if (password_verify($password, $user['password'])) {
+                        // Set session
+                        $_SESSION['user_id'] = $user['user_id'];
+                        $_SESSION['full_name'] = $user['full_name'];
+                        $_SESSION['email'] = $user['email'];
+                        $_SESSION['role'] = $user['role'];
+                        $_SESSION['assigned_pond'] = $user['assigned_pond'];
+                        
+                        // Update last login
+                        $update = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE user_id = ?");
+                        $update->execute([$user['user_id']]);
+                        
+                        // Log activity
+                        try {
+                            $log = $pdo->prepare("INSERT INTO activities (user_id, action, ip_address, created_at) VALUES (?, 'login', ?, NOW())");
+                            $log->execute([$user['user_id'], $_SERVER['REMOTE_ADDR']]);
+                        } catch(Exception $e) {
+                            // Skip if activities table doesn't exist
+                        }
+                        
+                        // Clear output buffer before redirect
+                        ob_end_clean();
+                        
+                        // Redirect based on role - use relative paths since we're in root directory
+                        switch($user['role']) {
+                            case 'admin':
+                                header("Location: admin/admin_dashboard.php");
+                                break;
+                            case 'manager':
+                                header("Location: manager/manager_dashboard.php");
+                                break;
+                            case 'staff':
+                                header("Location: staff/staff_dashboard.php");
+                                break;
+                            default:
+                                header("Location: index.php?error=invalid_role");
+                        }
+                        exit();
+                    } else {
+                        $error = "Invalid password";
                     }
-                    
-                    // Clear output buffer before redirect
-                    ob_end_clean();
-                    
-                    // Redirect based on role - use absolute path
-                    $base_url = "http://localhost/matter-detection-in-tilapya";
-                    
-                    switch($user['role']) {
-                        case 'admin':
-                            header("Location: $base_url/admin/admin_dashboard.php");
-                            break;
-                        case 'manager':
-                            header("Location: $base_url/manager/manager_dashboard.php");
-                            break;
-                        case 'staff':
-                            header("Location: $base_url/staff/staff_dashboard.php");
-                            break;
-                        default:
-                            header("Location: $base_url/auth/login.php?error=invalid_role");
-                    }
-                    exit();
                 } else {
-                    $error = "Invalid password";
+                    $error = "Email not found";
                 }
-            } else {
-                $error = "Email not found";
+            } catch(PDOException $e) {
+                $error = "Database error: " . $e->getMessage();
             }
-        } catch(PDOException $e) {
-            $error = "Database error: " . $e->getMessage();
         }
     }
-}
-?>
+    ?>
 
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Organic Tilapia</title>
+    <title>Organic Tilapia - Matter Detection System</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         * {
@@ -332,6 +328,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+
+        /* Additional styles for index page */
+        .welcome-badge {
+            text-align: center;
+            margin-bottom: 1.5rem;
+            padding: 0.5rem;
+            background: rgba(59, 130, 246, 0.1);
+            border-radius: 50px;
+            display: inline-block;
+            width: auto;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .welcome-badge span {
+            color: #3b82f6;
+            font-size: 0.9rem;
+            padding: 0.3rem 1rem;
+        }
     </style>
 </head>
 <body>
@@ -341,11 +356,29 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             <h2>Organic Tilapia</h2>
             <p>Matter Detection System</p>
         </div>
+
+        <div class="welcome-badge">
+            <span><i class="fas fa-key"></i> Please login to continue</span>
+        </div>
         
         <?php if($error): ?>
             <div class="error">
                 <i class="fas fa-exclamation-circle" style="margin-right: 0.5rem;"></i>
                 <?php echo htmlspecialchars($error); ?>
+            </div>
+        <?php endif; ?>
+        
+        <?php if(isset($_GET['error']) && $_GET['error'] == 'invalid_role'): ?>
+            <div class="error">
+                <i class="fas fa-exclamation-circle" style="margin-right: 0.5rem;"></i>
+                Invalid user role. Please contact administrator.
+            </div>
+        <?php endif; ?>
+        
+        <?php if(isset($_GET['loggedout']) && $_GET['loggedout'] == 1): ?>
+            <div style="background: rgba(34, 197, 94, 0.1); color: #4ade80; padding: 0.8rem 1rem; border-radius: 10px; margin-bottom: 1.5rem; text-align: center; font-size: 0.9rem; border: 1px solid rgba(34, 197, 94, 0.2);">
+                <i class="fas fa-check-circle" style="margin-right: 0.5rem;"></i>
+                Successfully logged out
             </div>
         <?php endif; ?>
         
@@ -402,6 +435,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             btn.innerHTML = '<span>Logging in...</span><span class="loading"></span>';
             btn.disabled = true;
         });
+
+        // Check for session timeout or other messages
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('timeout') === '1') {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error';
+            errorDiv.innerHTML = '<i class="fas fa-clock" style="margin-right: 0.5rem;"></i>Session expired. Please login again.';
+            document.querySelector('.logo').insertAdjacentElement('afterend', errorDiv);
+        }
     </script>
 </body>
 </html>

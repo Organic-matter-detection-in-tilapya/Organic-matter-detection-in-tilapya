@@ -1,19 +1,17 @@
 <?php
-// config/config.php
-// REMOVE these lines:
-// session_save_path('C:/xampp/tmp/');
-// session_start();
-
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 // Database connection
-require_once __DIR__ . '/db_connect.php';
+require_once __DIR__ . 'db_connect.php';
 
 // Site URL
-define('BASE_URL', 'http://localhost/matter-detection-in-tilapya');
+define('BASE_URL', '/fishpond');
 
 // User roles
 define('ROLE_ADMIN', 'admin');
 define('ROLE_MANAGER', 'manager');
-define('ROLE_STAFF', 'staff');
+define('ROLE_STAFF', 'staff');  
 
 // Function to check if user is logged in
 function isLoggedIn() {
