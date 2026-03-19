@@ -2,8 +2,9 @@
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-// Database connection
-require_once __DIR__ . 'db_connect.php';
+
+// Database connection - TAMA ito dahil nasa config folder din
+require_once __DIR__ . '/db_connect.php';  // __DIR__ = /config/
 
 // Site URL
 define('BASE_URL', '/fishpond');
@@ -34,7 +35,6 @@ function getCurrentUser($pdo) {
     if (!isLoggedIn()) {
         return null;
     }
-    
     $stmt = $pdo->prepare("SELECT * FROM users WHERE user_id = ?");
     $stmt->execute([$_SESSION['user_id']]);
     return $stmt->fetch(PDO::FETCH_ASSOC);

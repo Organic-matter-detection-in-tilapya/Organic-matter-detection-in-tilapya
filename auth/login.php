@@ -1,79 +1,82 @@
-    <?php
-    session_start();
-    require_once 'config/config.php';
+<?php
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 
-    error_reporting(E_ALL);
-    ini_set('display_errors', 1);
+session_start();
 
-    ob_start();
+// >>> ITO ANG TAMANG PATH <<<
+require_once '../config/config.php';  // Umakyat sa parent folder, pasok sa config/
 
-    $error = '';
+ob_start();
 
-    if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-        $email = trim($_POST['email']);
-        $password = $_POST['password'];
-        
-        if (empty($email) || empty($password)) {
-            $error = "Please fill in all fields";
-        } else {
-            try {
-                // Get user by email
-                $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ?");
-                $stmt->execute([$email]);
-                $user = $stmt->fetch();
-                
-                if ($user) {
-                    // Verify password
-                    if (password_verify($password, $user['password'])) {
-                        // Set session
-                        $_SESSION['user_id'] = $user['user_id'];
-                        $_SESSION['full_name'] = $user['full_name'];
-                        $_SESSION['email'] = $user['email'];
-                        $_SESSION['role'] = $user['role'];
-                        $_SESSION['assigned_pond'] = $user['assigned_pond'];
-                        
-                        // Update last login
-                        $update = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE user_id = ?");
-                        $update->execute([$user['user_id']]);
-                        
-                        // Log activity
-                        try {
-                            $log = $pdo->prepare("INSERT INTO activities (user_id, action, ip_address, created_at) VALUES (?, 'login', ?, NOW())");
-                            $log->execute([$user['user_id'], $_SERVER['REMOTE_ADDR']]);
-                        } catch(Exception $e) {
-                            // Skip if activities table doesn't exist
-                        }
-                        
-                        // Clear output buffer before redirect
-                        ob_end_clean();
-                        
-                        // Redirect based on role - use relative paths since we're in root directory
-                        switch($user['role']) {
-                            case 'admin':
-                                header("Location: admin/admin_dashboard.php");
-                                break;
-                            case 'manager':
-                                header("Location: manager/manager_dashboard.php");
-                                break;
-                            case 'staff':
-                                header("Location: staff/staff_dashboard.php");
-                                break;
-                            default:
-                                header("Location: index.php?error=invalid_role");
-                        }
-                        exit();
-                    } else {
-                        $error = "Invalid password";
+$error = '';
+
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    $email = trim($_POST['email']);
+    $password = $_POST['password'];
+    
+    if (empty($email) || empty($password)) {
+        $error = "Please fill in all fields";
+    } else {
+        try {
+            // Get user by email
+            $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ?");
+            $stmt->execute([$email]);
+            $user = $stmt->fetch();
+            
+            if ($user) {
+                // Verify password
+                if (password_verify($password, $user['password'])) {
+                    // Set session
+                    $_SESSION['user_id'] = $user['user_id'];
+                    $_SESSION['full_name'] = $user['full_name'];
+                    $_SESSION['email'] = $user['email'];
+                    $_SESSION['role'] = $user['role'];
+                    $_SESSION['assigned_pond'] = $user['assigned_pond'];
+                    
+                    // Update last login
+                    $update = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE user_id = ?");
+                    $update->execute([$user['user_id']]);
+                    
+                    // Log activity
+                    try {
+                        $log = $pdo->prepare("INSERT INTO activities (user_id, action, ip_address, created_at) VALUES (?, 'login', ?, NOW())");
+                        $log->execute([$user['user_id'], $_SERVER['REMOTE_ADDR']]);
+                    } catch(Exception $e) {
+                        // Skip if activities table doesn't exist
                     }
+                    
+                    // Clear output buffer before redirect
+                    ob_end_clean();
+                    
+                    // Redirect based on role
+                    switch($user['role']) {
+                        case 'admin':
+                            header("Location: ../admin/admin_dashboard.php");
+                            break;
+                        case 'manager':
+                            header("Location: ../manager/manager_dashboard.php");
+                            break;
+                        case 'staff':
+                            header("Location: ../staff/staff_dashboard.php");
+                            break;
+                        default:
+                            header("Location: login.php?error=invalid_role");
+                    }
+                    exit();
                 } else {
-                    $error = "Email not found";
+                    $error = "Invalid password";
                 }
-            } catch(PDOException $e) {
-                $error = "Database error: " . $e->getMessage();
+            } else {
+                $error = "Email not found";
             }
+        } catch(PDOException $e) {
+            $error = "Database error: " . $e->getMessage();
         }
     }
-    ?>
+}
+?>
+<!-- Rest of your HTML form -->
 
 <!DOCTYPE html>
 <html lang="en">

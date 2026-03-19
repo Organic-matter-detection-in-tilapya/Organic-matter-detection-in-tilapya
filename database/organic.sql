@@ -390,3 +390,27 @@ SELECT
 UNION ALL
 SELECT 
     'staff3@company.com', 'staff123', 'WORKS ✓ (HASH #3)';
+ 
+
+
+
+
+
+
+
+
+
+ -- Update Admin
+UPDATE users SET password = '$2y$10$IUSeEAMWT/QC/IPjfIzLD.fflD7hnNNcBLfADaXcYpimG.Qz71EVq' WHERE email = 'admin@company.com';
+
+-- Update Manager
+UPDATE users SET password = '$2y$10$U0dJXYYhyawtEUKB0Fl7ZuP/nrAWTrMLDqTND2GwLl3x.c289CkPy' WHERE email = 'manager@company.com';
+
+-- Update Staff 1
+UPDATE users SET password = '$2y$10$rrTWH5LoKPkIHf5ADxU50..tszdanpKVp/gDiwM/HrArnTyUtO3Qe' WHERE email = 'staff1@company.com';
+
+-- Update Staff 2
+UPDATE users SET password = '$2y$10$5GZwd8AFy2bp.oBUpJjUJeoBNeZI3NjyBPT9RtPRCMBfugk7mSau2' WHERE email = 'staff2@company.com';
+
+-- Update Staff 3
+UPDATE users SET password = '$2y$10$eUhWhqCuuJ3n2rUiix6aSeWuMkIGJmS0mydiqrQEx72B1Jn.K/Rte' WHERE email = 'staff3@company.com';
