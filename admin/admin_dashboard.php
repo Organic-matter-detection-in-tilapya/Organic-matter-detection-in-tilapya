@@ -1,5 +1,5 @@
 <?php
-session_start(); // <- DAPAT NASA PINAKATUKTOK
+session_start(); 
 require_once '../config/config.php';
 // admin_dashboard.php
 error_reporting(E_ALL & ~E_DEPRECATED & ~E_WARNING);

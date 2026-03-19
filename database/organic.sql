@@ -393,13 +393,6 @@ SELECT
  
 
 
-
-
-
-
-
-
-
  -- Update Admin
 UPDATE users SET password = '$2y$10$IUSeEAMWT/QC/IPjfIzLD.fflD7hnNNcBLfADaXcYpimG.Qz71EVq' WHERE email = 'admin@company.com';
 
