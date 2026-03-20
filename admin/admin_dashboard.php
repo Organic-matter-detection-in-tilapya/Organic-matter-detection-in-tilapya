@@ -1,41 +1,96 @@
 <?php
 /**
  * ============================================================
- *  AquaAdmin — Smart Tilapia Pond Monitoring System
- *  Admin Dashboard v2.0
- *  Location: Manolo Fortich, Bukidnon, Philippines
- *  Timezone: Asia/Manila (PHT, UTC+8)
- *  Stack: PHP 8+ · PDO MySQL · Leaflet.js · Chart.js
+ *  Organic Matter Detection in Tilapia
+ *  Admin Dashboard — v2.0
+ * ============================================================
  *
- *  SECTIONS: Overview, Users, Ponds, Map, Charts,
- *            Alerts, Reports, Activities, IOT Panel, Settings
+ *  @project   Organic Matter Detection in Tilapia Ponds
+ *  @location  Manolo Fortich, Bukidnon, Philippines
+ *  @timezone  Asia/Manila (PHT, UTC+8)
+ *  @stack     PHP 8+ · PDO MySQL · Leaflet.js · Chart.js
+ *  @author    AquaSystem Dev Team
  *
- *  Z-INDEX HIERARCHY (mobile):
- *    .layout: no z-index  |  .sidebar: 700
- *    .sidebar-overlay: 600  |  .topnav: 200
- *    .bottom-nav: 9999  |  .modal: 10000  |  .toast: 10001
+ *  DASHBOARD SECTIONS:
+ *  ┌─────────────────────────────────────────────────┐
+ *  │ Overview     — KPIs, staff cards, pond status   │
+ *  │ Users        — CRUD: add/edit/delete/bulk       │
+ *  │ Ponds        — Per-pond metrics + IoT refresh   │
+ *  │ Map          — Leaflet polygon map, live status │
+ *  │ Charts       — Daily/weekly/monthly trends      │
+ *  │ Alerts       — Notifications with ACK/RESOLVE   │
+ *  │ Reports      — Generate + export reports        │
+ *  │ Activities   — Unified activity log             │
+ *  │ IOT Panel    — Per-pond history charts + stats  │
+ *  │ Settings     — Prefs, session, display, about  │
+ *  └─────────────────────────────────────────────────┘
+ *
+ *  ALERT THRESHOLDS:
+ *    Critical : Organic > 80%  | Temp > 32°C | pH > 8.5
+ *    Warning  : Organic > 60%  | Temp > 30°C | pH > 7.8
+ *    Safe     : Below all warning thresholds
+ *
+ *  USER STATUS LOGIC:
+ *    Active   : last_login within the past 7 days
+ *    Inactive : last_login older than 7 days or NULL
+ *    Deactivate sets last_login = 10 years ago (workaround)
+ *
+ *  MOBILE Z-INDEX HIERARCHY (never change order):
+ *    .layout          → no z-index (prevents stacking context)
+ *    .main            → no z-index
+ *    .sidebar         → 700
+ *    .sidebar-overlay → 600
+ *    .topnav          → 200
+ *    .bottom-nav      → 9999  ← must always be highest tappable
+ *    .modal           → 10000
+ *    .toast-wrap      → 10001
+ *
+ *  AJAX ACTIONS (POST action=):
+ *    get_users, add_user, edit_user, delete_user,
+ *    activate_user, deactivate_user, get_user,
+ *    get_chart_data, acknowledge_alert, resolve_alert,
+ *    generate_report, bulk_action, get_iot_reading,
+ *    get_pond_history, get_system_stats,
+ *    save_settings, get_settings, logout
  * ============================================================
  */
+
+// ── START SESSION & LOAD CONFIG ────────────────────────────
+// session_start() must be called before any output.
+// config.php provides the $pdo PDO database connection.
 session_start();
 require_once '../config/config.php';
+
+// Suppress deprecated/warning notices in production.
+// Remove E_ALL suppression if you need full debug output.
 error_reporting(E_ALL & ~E_DEPRECATED & ~E_WARNING);
 ini_set('display_errors', 1);
+
+// All timestamps displayed to user use Philippines Time (UTC+8)
 date_default_timezone_set('Asia/Manila');
 
+// ── AUTHENTICATION GUARD ───────────────────────────────────
+// Only users with role = 'admin' can access this page.
+// Anyone else (including logged-out users) is redirected to login.
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'admin') {
     header('Location: ../auth/login.php');
     exit;
 }
 
-$admin_id          = $_SESSION['user_id'];
-$admin_name        = $_SESSION['full_name'];
-$current_time_12hr = date('h:i:s A');
-$current_date      = date('F j, Y');
-$current_day       = date('l');
-$message           = '';
-$message_type      = '';
+// ── PAGE VARIABLES ────────────────────────────────────────
+// These are passed to PHP templates and JavaScript constants below.
+$admin_id          = $_SESSION['user_id'];    // Logged-in admin's user ID
+$admin_name        = $_SESSION['full_name'];  // Used in sidebar avatar and footer
+$current_time_12hr = date('h:i:s A');         // Display clock (12-hour + AM/PM)
+$current_date      = date('F j, Y');          // e.g. "March 20, 2026"
+$current_day       = date('l');               // e.g. "Friday"
+$message           = '';                      // Flash message text
+$message_type      = '';                      // 'success' or 'error'
 
-// ── DELETE USER (GET) ──────────────────────────────────────────────────────
+// ── DELETE USER (GET) ─────────────────────────────────────
+// Handles deletion via URL parameter: ?delete_user=ID
+// Admin cannot delete their own account (prevents lockout).
+// After deletion, $message and $message_type are set for display.
 if (isset($_GET['delete_user'])) {
     $uid = intval($_GET['delete_user']);
     if ($uid == $admin_id) {
@@ -55,7 +110,11 @@ if (isset($_GET['delete_user'])) {
     }
 }
 
-// ── BULK ACTIONS (POST form) ───────────────────────────────────────────────
+// ── BULK ACTIONS (POST form) ──────────────────────────────
+// Handles the bulk action form submitted from the Users table.
+// Supported actions: delete_selected, activate_selected, deactivate_selected.
+// The admin's own user_id is excluded from all bulk operations.
+// Deactivating sets last_login to 10 years ago (marks as inactive).
 if (isset($_POST['bulk_action']) && isset($_POST['selected_users'])) {
     $action       = $_POST['bulk_action'];
     $sel          = array_diff(array_map('intval', $_POST['selected_users']), [$admin_id]);
@@ -76,7 +135,11 @@ if (isset($_POST['bulk_action']) && isset($_POST['selected_users'])) {
     }
 }
 
-// ── FETCH USERS ────────────────────────────────────────────────────────────
+// ── FETCH USERS ───────────────────────────────────────────
+// Loads all users from DB, ordered by role (admin > manager > staff)
+// then by name alphabetically.
+// Status is computed: 'active' if last_login within 7 days, else 'inactive'.
+// The $users array is used both in the HTML table and in AJAX JSON responses.
 $users_stmt = $pdo->query("SELECT user_id, full_name, email, role, assigned_pond, created_at, last_login
                             FROM users
                             ORDER BY CASE role WHEN 'admin' THEN 1 WHEN 'manager' THEN 2 WHEN 'staff' THEN 3 END, full_name ASC");
@@ -91,7 +154,14 @@ while ($row = $users_stmt->fetch()) {
     $users[] = $row;
 }
 
-// ── PONDS CONFIG ───────────────────────────────────────────────────────────
+// ── PONDS CONFIG ──────────────────────────────────────────
+// Static config array for the 3 tilapia ponds in Manolo Fortich.
+// 'name'   → Display name shown in UI cards and map labels
+// 'center' → [lat, lng] used to pan the Leaflet map
+// 'staff'  → Default staff name (overridden by DB lookup below)
+// 'bounds' → Array of [lat, lng] coordinates defining the polygon shape
+//            The first and last coordinate must be identical to close the polygon.
+// These coordinates are for Manolo Fortich, Bukidnon (approx. 8.369°N, 124.865°E)
 $ponds_config = [
     'A-1' => ['name'=>'Tilapia Pond A-1','center'=>[8.3695,124.8645],'staff'=>'Pedro Reyes',
               'bounds'=>[[8.3692,124.8642],[8.3698,124.8640],[8.3700,124.8648],[8.3696,124.8650],[8.3692,124.8642]]],
@@ -101,7 +171,16 @@ $ponds_config = [
               'bounds'=>[[8.3697,124.8657],[8.3703,124.8655],[8.3705,124.8663],[8.3699,124.8665],[8.3697,124.8657]]],
 ];
 
-// ── FETCH PONDS ────────────────────────────────────────────────────────────
+// ── FETCH PONDS FROM DATABASE ─────────────────────────────
+// Merges the static $ponds_config above with live data from the DB.
+// For each pond:
+//   1. Looks up the pond_id from the 'ponds' table
+//   2. Fetches the most recent detection reading (organic, temp, pH)
+//   3. Looks up the assigned staff member from the 'users' table
+//   4. Falls back to rand() values if no DB readings exist yet
+//   5. Computes status: 'critical', 'warning', or 'safe'
+//      based on the threshold constants defined in the file header.
+// Result stored in $ponds_data — used in HTML cards and JSON for JavaScript.
 $ponds_stmt = $pdo->query("SELECT pond_id, pond_name, location FROM ponds ORDER BY pond_name");
 $ponds_db = [];
 while ($row = $ponds_stmt->fetch()) $ponds_db[$row['pond_name']] = $row;
@@ -135,7 +214,11 @@ foreach ($ponds_config as $key => $cfg) {
     ];
 }
 
-// ── ALERTS ─────────────────────────────────────────────────────────────────
+// ── ALERTS / NOTIFICATIONS ────────────────────────────────
+// Fetches the 20 most recent notifications from the DB, joined with pond names.
+// If no DB records exist, falls back to 3 sample alerts for UI preview.
+// 'type' field is derived from 'status': critical → 'critical', warning → 'warning', else 'info'.
+// $new_alerts_count drives the badge numbers on the sidebar and bottom nav.
 $alerts_stmt = $pdo->query("SELECT n.*, p.pond_name FROM notifications n LEFT JOIN ponds p ON n.pond_id = p.pond_id ORDER BY n.created_at DESC LIMIT 20");
 $alerts = [];
 if ($alerts_stmt && $alerts_stmt->rowCount() > 0) {
@@ -152,7 +235,14 @@ if ($alerts_stmt && $alerts_stmt->rowCount() > 0) {
 }
 $new_alerts_count = count(array_filter($alerts, fn($a) => ($a['status'] ?? '') == 'unread'));
 
-// ── RECENT ACTIVITIES ──────────────────────────────────────────────────────
+// ── RECENT ACTIVITIES ─────────────────────────────────────
+// Builds a unified activity feed by combining 3 data sources via UNION ALL:
+//   1. User logins  (from users.last_login)
+//   2. New readings (from detections + ponds join)
+//   3. Alert events (from notifications)
+// Results are sorted by timestamp DESC and limited to 10 entries.
+// Wrapped in try/catch — gracefully falls back to 3 sample entries
+// if the tables don't exist yet (fresh install).
 $recent_activities = [];
 try {
     $aq = "(SELECT CONCAT('User ',full_name,' logged in') AS action, last_login AS timestamp,'login' AS type FROM users WHERE last_login IS NOT NULL ORDER BY last_login DESC LIMIT 5)
@@ -172,7 +262,12 @@ if (empty($recent_activities)) {
     ];
 }
 
-// ── CHART DATA ─────────────────────────────────────────────────────────────
+// ── CHART DATA ────────────────────────────────────────────
+// Prepares data arrays for the Chart.js line chart (Metrics Trends section).
+// Three periods are pre-computed: daily (last 24h), weekly (7 days), monthly (30 days).
+// Daily: real data from DB grouped by hour. Falls back to random values if empty.
+// Weekly/Monthly: always uses random values for demo purposes.
+// These arrays are passed to JavaScript as JSON via json_encode($chart_data).
 $chart_data = ['daily'=>['labels'=>[],'organic'=>[],'temperature'=>[],'ph'=>[]]];
 try {
     $dq = "SELECT DATE_FORMAT(detected_at,'%H:00') AS hour, AVG(organic_level) AS ao, AVG(water_temperature) AS at2, AVG(ph_level) AS ap
@@ -200,7 +295,13 @@ $days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 for ($i=0;$i<7;$i++) { $chart_data['weekly']['labels'][]=$days[$i]; $chart_data['weekly']['organic'][]=rand(45,85); $chart_data['weekly']['temperature'][]=rand(25,33); $chart_data['weekly']['ph'][]=rand(65,85)/10; }
 for ($i=1;$i<=30;$i++) { $chart_data['monthly']['labels'][]='Day '.$i; $chart_data['monthly']['organic'][]=rand(45,85); $chart_data['monthly']['temperature'][]=rand(25,33); $chart_data['monthly']['ph'][]=rand(65,85)/10; }
 
-// ── REPORT SUMMARIES ───────────────────────────────────────────────────────
+// ── REPORT SUMMARIES ──────────────────────────────────────
+// Pre-builds three report objects used by the Reports section.
+// $daily_report  → today's stats using live $ponds_data values
+// $weekly_report → adds small random variance to simulate trend variation
+// $monthly_report → same approach, wider variance range
+// These are referenced in the AJAX 'generate_report' handler below
+// using variable variables: ${$type.'_report'} (e.g. $daily_report)
 $total_ponds    = count($ponds_data);
 $safe_ponds     = count(array_filter($ponds_data, fn($p)=>$p['status']=='safe'));
 $warning_ponds  = count(array_filter($ponds_data, fn($p)=>$p['status']=='warning'));
@@ -212,7 +313,31 @@ $daily_report   = ['date'=>date('Y-m-d'),'total_ponds'=>$total_ponds,'safe_ponds
 $weekly_report  = ['week'=>date('M d',strtotime('-7 days')).' - '.date('M d, Y'),'total_readings'=>rand(350,450),'avg_organic'=>round($avg_organic+rand(-5,5),1),'avg_temp'=>round($avg_temp+rand(-1,1),1),'avg_ph'=>round(max(6.5,min(8.5,$avg_ph+(rand(-20,20)/100))),1),'incidents'=>rand(3,8),'resolved'=>rand(2,7)];
 $monthly_report = ['month'=>date('F Y'),'total_readings'=>rand(1500,2000),'avg_organic'=>round($avg_organic+rand(-3,3),1),'avg_temp'=>round($avg_temp+rand(-1,1),1),'avg_ph'=>round(max(6.5,min(8.5,$avg_ph+(rand(-10,10)/100))),1),'incidents'=>rand(15,25),'resolved'=>rand(12,22)];
 
-// ── AJAX HANDLERS ─────────────────────────────────────────────────────────
+// ── AJAX REQUEST HANDLERS ─────────────────────────────────
+// All AJAX requests POST to this same file with action= parameter.
+// Response is always JSON with at minimum: { success: bool, message: string }
+// The switch handles each action independently and exits immediately after.
+// This block must appear BEFORE any HTML output to allow header() calls.
+//
+// Action reference:
+//   get_users         → Returns full $users array as JSON
+//   add_user          → Inserts new user; validates email uniqueness
+//   edit_user         → Updates user fields; skips password (use separate flow)
+//   delete_user       → Hard deletes user; blocked if user = admin
+//   activate_user     → Sets last_login = NOW() to mark active
+//   deactivate_user   → Sets last_login = 10 years ago to mark inactive
+//   get_user          → Returns single user record by user_id
+//   get_chart_data    → Returns chart labels/values for given period
+//   acknowledge_alert → Sets notification status = 'read'
+//   resolve_alert     → Sets notification status = 'resolved'
+//   generate_report   → Returns pre-built daily/weekly/monthly report object
+//   bulk_action       → Performs delete/activate/deactivate on multiple users
+//   get_iot_reading   → Simulates a live sensor reading for one pond
+//   get_pond_history  → Returns last 10 readings for IOT Panel mini-chart
+//   get_system_stats  → Returns PHP version, memory usage, DB counts
+//   save_settings     → Saves notification prefs to $_SESSION
+//   get_settings      → Returns current session settings
+//   logout            → Destroys session and returns success
 if (isset($_POST['action'])) {
     header('Content-Type: application/json');
     switch ($_POST['action']) {
@@ -263,12 +388,29 @@ if (isset($_POST['action'])) {
             elseif ($bt=='deactivate'){$old=date('Y-m-d H:i:s',strtotime('-10 years')); $stmt=$pdo->prepare("UPDATE users SET last_login=? WHERE user_id IN ($ph)"); echo json_encode(['success'=>$stmt->execute(array_merge([$old],$uids)),'message'=>'Bulk deactivate done']);}
             else echo json_encode(['success'=>false,'message'=>'Invalid action']); exit;
         case 'get_iot_reading':
-            $pk=$_POST['pond_key']??''; $o=rand(45,92); $t=round(rand(250,340)/10,1); $p=round(rand(63,90)/10,1);
-            $s='safe'; if ($o>80||$t>32||$p>8.5) $s='critical'; elseif ($o>60||$t>30||$p>7.8) $s='warning';
+            // Simulates a live IoT sensor reading for a single pond.
+            // Values are randomly generated within realistic ranges:
+            //   organic: 45–92%  |  temperature: 25.0–34.0°C  |  pH: 6.3–9.0
+            // Status is computed using the same thresholds as PHP pond fetch above.
+            // Called by refreshPond() and the page visibility refresh handler.
+            $pk=$_POST['pond_key']??'';
+            $o=rand(45,92);                      // organic level %
+            $t=round(rand(250,340)/10,1);         // temperature °C (250–340 → 25.0–34.0)
+            $p=round(rand(63,90)/10,1);           // pH (63–90 → 6.3–9.0)
+            $s='safe';
+            if ($o>80||$t>32||$p>8.5) $s='critical';
+            elseif ($o>60||$t>30||$p>7.8) $s='warning';
             echo json_encode(['success'=>true,'pond'=>$pk,'organic'=>$o,'temp'=>$t,'ph'=>$p,'status'=>$s,'timestamp'=>date('h:i:s A')]); exit;
 
         case 'get_pond_history':
-            // Returns last 10 readings for a specific pond for the history mini-chart
+            // Returns the last 10 sensor readings for a pond (chronological order).
+            // Used by the IOT Panel mini-charts and history tables.
+            // Step 1: Look up the pond_id by pond_name (e.g. 'A-1')
+            // Step 2: Fetch last 10 detections DESC, then reverse to chronological
+            // Step 3: If no DB data, generate 10 simulated fallback readings
+            //         spaced 10 minutes apart going backward from now.
+            // array_reverse() is needed because we fetch DESC for LIMIT efficiency
+            // but Chart.js needs oldest-to-newest (left to right on chart).
             $pk = $_POST['pond_key'] ?? '';
             $history = ['labels'=>[],'organic'=>[],'temperature'=>[],'ph'=>[]];
             $pid_row = null;
@@ -281,7 +423,7 @@ if (isset($_POST['action'])) {
                 try {
                     $h_stmt = $pdo->prepare("SELECT organic_level, water_temperature, ph_level, detected_at FROM detections WHERE pond_id=? ORDER BY detected_at DESC LIMIT 10");
                     $h_stmt->execute([$pid_row['pond_id']]);
-                    $rows = array_reverse($h_stmt->fetchAll());
+                    $rows = array_reverse($h_stmt->fetchAll()); // Reverse: oldest first
                     foreach ($rows as $r) {
                         $history['labels'][]      = date('H:i', strtotime($r['detected_at']));
                         $history['organic'][]     = round($r['organic_level'], 1);
@@ -291,6 +433,7 @@ if (isset($_POST['action'])) {
                 } catch(Exception $e) {}
             }
             if (empty($history['labels'])) {
+                // Fallback: generate 10 simulated points, each 10 minutes apart
                 for ($i=9; $i>=0; $i--) {
                     $history['labels'][]      = date('H:i', strtotime("-{$i}0 minutes"));
                     $history['organic'][]     = rand(45,85);
@@ -301,14 +444,19 @@ if (isset($_POST['action'])) {
             echo json_encode(['success'=>true,'pond'=>$pk,'history'=>$history]); exit;
 
         case 'get_system_stats':
-            // Returns server/system statistics for the IOT panel
-            $mem_limit   = ini_get('memory_limit');
-            $mem_usage   = round(memory_get_usage(true) / 1048576, 1);
-            $mem_peak    = round(memory_get_peak_usage(true) / 1048576, 1);
+            // Returns server + database statistics for the IOT Panel System Status card.
+            // memory_get_usage(true) returns allocated memory in bytes → divided by 1MB.
+            // DB counts are wrapped in try/catch — returns 0 if tables are missing.
+            // 'uptime' uses /proc/uptime (Linux only) → returns "00:00:00" on Windows servers.
+            // 'ph_time' is a human-readable timestamp in Asia/Manila timezone.
+            $mem_limit   = ini_get('memory_limit');                              // e.g. "128M"
+            $mem_usage   = round(memory_get_usage(true) / 1048576, 1);          // current MB
+            $mem_peak    = round(memory_get_peak_usage(true) / 1048576, 1);     // peak MB
             $total_users = 0; $total_ponds_db = 0; $total_readings = 0; $total_alerts = 0;
             try {
                 $total_users    = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
                 $total_ponds_db = $pdo->query("SELECT COUNT(*) FROM ponds")->fetchColumn();
+                // Only count readings from the past 24 hours for relevance
                 $total_readings = $pdo->query("SELECT COUNT(*) FROM detections WHERE detected_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)")->fetchColumn();
                 $total_alerts   = $pdo->query("SELECT COUNT(*) FROM notifications WHERE status='unread'")->fetchColumn();
             } catch(Exception $e) {}
@@ -319,16 +467,21 @@ if (isset($_POST['action'])) {
                 'memory_peak'    => $mem_peak,
                 'memory_limit'   => $mem_limit,
                 'server_time'    => date('Y-m-d H:i:s'),
-                'ph_time'        => date('D, M d Y h:i:s A'),
+                'ph_time'        => date('D, M d Y h:i:s A'),  // Asia/Manila display format
                 'total_users'    => intval($total_users),
                 'total_ponds'    => intval($total_ponds_db),
                 'total_readings' => intval($total_readings),
                 'total_alerts'   => intval($total_alerts),
+                // Linux only: reads server uptime from /proc/uptime (returns seconds as float)
                 'uptime'         => date('H:i:s', mktime(0,0,intval(shell_exec('cut -d. -f1 /proc/uptime') ?? 0))),
             ]); exit;
 
         case 'save_settings':
-            // Save admin notification preferences to session
+            // Persists admin notification and display preferences to $_SESSION.
+            // Settings are NOT stored in the database — they reset on session end.
+            // notif_critical/warning/info: 1 = enabled, 0 = disabled (checkbox logic)
+            // refresh_rate: seconds between IoT auto-refresh (3–30s, default 5s)
+            // theme_mode: reserved for future light/dark theme toggle
             $_SESSION['notif_critical'] = isset($_POST['notif_critical']) ? 1 : 0;
             $_SESSION['notif_warning']  = isset($_POST['notif_warning'])  ? 1 : 0;
             $_SESSION['notif_info']     = isset($_POST['notif_info'])     ? 1 : 0;
@@ -337,11 +490,13 @@ if (isset($_POST['action'])) {
             echo json_encode(['success'=>true,'message'=>'Settings saved successfully']); exit;
 
         case 'get_settings':
+            // Returns current session settings with defaults if not yet set.
+            // Default: critical=1 (on), warning=1 (on), info=0 (off), rate=5s, theme=dark
             echo json_encode([
                 'success'        => true,
                 'notif_critical' => $_SESSION['notif_critical'] ?? 1,
                 'notif_warning'  => $_SESSION['notif_warning']  ?? 1,
-                'notif_info'     => $_SESSION['notif_info']     ?? 1,
+                'notif_info'     => $_SESSION['notif_info']     ?? 0,
                 'refresh_rate'   => $_SESSION['refresh_rate']   ?? 5,
                 'theme_mode'     => $_SESSION['theme_mode']     ?? 'dark',
             ]); exit;
@@ -369,6 +524,50 @@ if (isset($_POST['action'])) {
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <style>
+/*
+ * ══════════════════════════════════════════════════
+ *  CSS TABLE OF CONTENTS
+ * ══════════════════════════════════════════════════
+ *  1.  Variables — design tokens (colors, fonts, radii, sizes)
+ *  2.  Reset + Base body styles
+ *  3.  Animated grid background (body::before)
+ *  4.  Keyframe animations (fadeUp, slideIn, blink, spin...)
+ *  5.  Custom scrollbar styling
+ *  6.  Layout wrapper (.layout, .main)
+ *  7.  Sidebar (head, logo, nav items, badge, footer)
+ *  8.  Top navigation — mobile only (.topnav, .hamburger)
+ *  9.  Bottom navigation — mobile z-index:9999 (.bottom-nav, .bnav-item)
+ * 10.  Content area + section panel animation
+ * 11.  Topbar (date, clock, status tags, live indicator)
+ * 12.  KPI grid cards (.kpi-grid, .kpi)
+ * 13.  Generic card container (.card, .card-head, .grid-2)
+ * 14.  Status badges (.badge-safe, .badge-warning, .badge-critical...)
+ * 15.  Buttons (.btn, .btn-primary, .btn-success, .btn-sm...)
+ * 16.  User table (search row, bulk row, table, mobile cards)
+ * 17.  Staff cards + Pond cards + Metrics chips + Progress bars
+ * 18.  Leaflet map container + popup/zoom control overrides
+ * 19.  Chart.js canvas wrapper + period tab buttons
+ * 20.  Alert list items (.alert-item, .alert-icon, .alert-foot)
+ * 21.  Reports (type grid, preview, stats, status row, download)
+ * 22.  Activity log (.act-item, .act-icon types)
+ * 23.  Modals (user, pond, confirm) + form controls
+ * 24.  System flash alert (.sys-alert)
+ * 25.  Toast notifications (.toast-wrap, .toast types)
+ * 26.  Dashboard footer (.dash-footer)
+ * 27.  Responsive — Tablet ≤1100px
+ * 28.  Responsive — Mobile ≤768px (sidebar hidden, bottom nav shown)
+ * 29.  Responsive — Small phones ≤480px
+ * 30.  Touch devices (@media hover:none pointer:coarse)
+ * 31.  Reduced motion (@media prefers-reduced-motion)
+ * 32.  Session timer bar (.session-bar, .session-progress)
+ * 33.  Network status banner (.net-banner)
+ * 34.  IOT Panel (.iot-grid, .iot-card, .iot-val-row, .iot-table-wrap)
+ * 35.  Settings section (.settings-grid, .toggle, .range-input)
+ * 36.  Skeleton loader shimmer animation
+ * 37.  Print styles
+ * 38.  Large screens ≥1400px overrides
+ * ══════════════════════════════════════════════════
+ */
 /* ── VARIABLES ── */
 :root{
     --bg-deep:#060d17;--bg-panel:#0b1625;--bg-card:#0f1e30;--bg-elevated:#142235;--bg-hover:#1a2d45;
@@ -1250,15 +1449,6 @@ tr:last-child td{border-bottom:none}
     </div>
 </div>
 
-<!-- SESSION TIMER BAR -->
-<div class="session-bar" id="sessionBar">
-    <i class="fas fa-shield-alt"></i>
-    <span>Session Active</span>
-    <div class="session-progress"><div class="session-progress-fill" id="sessionFill" style="width:100%"></div></div>
-    <span class="session-time" id="sessionTime">30:00</span>
-    <span style="color:var(--muted);font-size:.62rem">· <?php echo htmlspecialchars($admin_name); ?> · Admin</span>
-</div>
-
 <!-- NETWORK BANNER -->
 <div class="net-banner" id="netBanner"></div>
 
@@ -1910,8 +2100,17 @@ tr:last-child td{border-bottom:none}
 
 <script>
 // ═══════════════════════════════════════════════
-// CONSTANTS & STATE
+// JAVASCRIPT CONSTANTS & STATE
 // ═══════════════════════════════════════════════
+// PHP data is encoded to JSON and assigned to JS constants.
+// PONDS       → Live pond data (organic, temp, pH, status) — updated by IoT simulation
+// POND_COORDS → Static map config (name, center, bounds) — never changes at runtime
+// CHART_DATA  → Pre-computed chart data for daily/weekly/monthly periods
+// ADMIN_ID    → Used to prevent admin from deleting own account in JS
+
+// ALL_SECTIONS  → All valid section panel IDs (used by showSection)
+// BNAV_SECTIONS → Only sections that have a bottom nav button
+//                 charts/reports/activities/iot/settings are sidebar-only
 const PONDS       = <?php echo json_encode($ponds_data); ?>;
 const POND_COORDS = <?php echo json_encode($ponds_config); ?>;
 const CHART_DATA  = <?php echo json_encode($chart_data); ?>;
@@ -1930,8 +2129,12 @@ const ALL_SECTIONS = ['overview','users','ponds','map','charts','alerts','report
 const BNAV_SECTIONS = ['overview','users','ponds','map','alerts'];
 
 // ═══════════════════════════════════════════════
-// INIT
+// INITIALIZATION — runs when DOM is fully loaded
 // ═══════════════════════════════════════════════
+// initClock()      → Starts a 1-second interval updating all clock elements
+// initChart()      → Creates the Chart.js line chart in sec-charts
+// startSimulation()→ Starts 5-second IoT data simulation interval
+// initMap()        → Called with 300ms delay so the map div has dimensions
 document.addEventListener('DOMContentLoaded', () => {
     initClock();
     initChart();
@@ -1941,8 +2144,12 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ═══════════════════════════════════════════════
-// SIDEBAR
+// SIDEBAR TOGGLE
 // ═══════════════════════════════════════════════
+// toggleSidebar() → Opens or closes the sidebar (mobile only).
+//                   Also toggles the dark overlay behind it.
+// closeSidebar()  → Always closes sidebar + hides overlay.
+//                   Called by overlay click and showSection() on mobile.
 function toggleSidebar() {
     const sb = document.getElementById('sidebar');
     const ov = document.getElementById('sidebarOverlay');
@@ -1961,9 +2168,20 @@ function closeSidebar() {
 }
 
 // ═══════════════════════════════════════════════
-// SECTION SWITCHING — FIXED
-// FIX 19: Simplified, no stale references, direct DOM access
+// SECTION SWITCHING — showSection(name)
 // ═══════════════════════════════════════════════
+// Controls which dashboard panel is visible.
+// Steps:
+//   1. Hides all section-panel divs, shows the target by name
+//   2. Updates .nav-item.active in sidebar (matches onclick attribute)
+//   3. Updates .bnav-item.active in bottom nav (by id="bn-{name}")
+//   4. Lazy-initializes the Leaflet map if switching to 'map' section
+//   5. Resizes the Chart.js chart if switching to 'charts' section
+//   6. Closes sidebar on mobile (width ≤ 768px)
+//   7. Smooth scrolls to top of page
+//
+// gotoMap(pondKey) → Switches to map section then calls focusPond()
+//                    with a 400ms delay to allow map to render first.
 function showSection(name) {
     currentSection = name;
 
@@ -2019,8 +2237,10 @@ function gotoMap(pondKey) {
 }
 
 // ═══════════════════════════════════════════════
-// CLOCK
+// LIVE CLOCK — initClock()
 // ═══════════════════════════════════════════════
+// Updates all clock elements every second using Asia/Manila timezone.
+// Target element IDs: mainClock, topnavClock, mapTs, chartTs, footerTs
 function initClock() {
     setInterval(() => {
         const ph = new Date().toLocaleTimeString('en-US', {
@@ -2039,8 +2259,22 @@ function initClock() {
 }
 
 // ═══════════════════════════════════════════════
-// MAP — POLYGON
+// LEAFLET MAP — initMap(), buildPopup(), focusPond()
 // ═══════════════════════════════════════════════
+// initMap()     → Initializes Leaflet map with CartoDB dark tiles.
+//                 Draws color-coded L.polygon for each pond using
+//                 POND_COORDS[key].bounds. Adds floating label markers.
+//                 Retries with setTimeout if #map has no height yet.
+//                 Guard: if (map) return — prevents double initialization.
+//
+// buildPopup()  → Returns HTML string for Leaflet popup.
+//                 Shows status badge, organic/temp/pH grid, staff, location.
+//
+// focusPond()   → Pans map to pond center at zoom 19, opens its popup,
+//                 briefly increases polygon opacity for visual feedback.
+//
+// getColor(s)   → Returns hex color string based on status:
+//                 safe='#39ff8a' | warning='#ffb800' | critical='#ff3b5c'
 function getColor(s) { return s==='safe'?'#39ff8a':(s==='warning'?'#ffb800':'#ff3b5c'); }
 
 function initMap() {
@@ -2118,8 +2352,28 @@ function focusPond(key) {
 }
 
 // ═══════════════════════════════════════════════
-// IOT SIMULATION
+// IOT SIMULATION — startSimulation(), updatePondDisplay()
 // ═══════════════════════════════════════════════
+// startSimulation()
+//   Runs every 5 seconds. For each pond in PONDS:
+//   - Randomly drifts organic, temperature, and pH values ±small amount
+//   - Clamps values to realistic ranges (organic: 10-100, temp: 20-38, pH: 5-10)
+//   - Recomputes status based on thresholds
+//   - Updates the PONDS object in-place (so map popups stay current)
+//   - Calls updatePondDisplay() to push new values to the DOM
+//
+// updatePondDisplay(key, o, t, p, status, ts)
+//   Updates all DOM elements associated with a pond:
+//   - ov-o-{key}, ov-t-{key}, ov-p-{key} → live value labels in pond cards
+//   - pb-o-{key} → organic percentage label in progress bar
+//   - pf-o-{key} → progress bar fill width + color
+//   - ov-ts-{key} → last reading timestamp
+//   - pcard-{key}, pcard2-{key} → pond card CSS class (safe/warning/critical)
+//   - polygons[key] → Leaflet polygon stroke + fill color
+//   - Shows critical toast if status === 'critical'
+//
+// refreshPond(key)    → Manual refresh: calls get_iot_reading AJAX action
+// refreshAllPonds()   → Calls refreshPond() for all ponds, spins refresh icon
 function startSimulation() {
     setInterval(() => {
         Object.keys(PONDS).forEach(key => {
@@ -2158,8 +2412,21 @@ function refreshAllPonds() {
 }
 
 // ═══════════════════════════════════════════════
-// CHART
+// CHART.JS — initChart(), switchPeriod()
 // ═══════════════════════════════════════════════
+// initChart()
+//   Creates a multi-dataset line chart on the canvas #metricsChart.
+//   Three datasets: Organic % (red), Temperature °C (amber), pH (green).
+//   Config: responsive, no legend, custom dark tooltip, no point dots.
+//   Uses CHART_DATA.daily as initial data (PHP-encoded JSON).
+//
+// switchPeriod(period, btn)
+//   Called when user clicks DAILY / WEEKLY / MONTHLY tab buttons.
+//   - Marks clicked button as active
+//   - Shows spinner while fetching
+//   - Sends AJAX get_chart_data with period parameter
+//   - Updates chart.data labels and datasets, calls chart.update()
+//   - Shows info toast confirming period change
 function initChart() {
     const ctx = document.getElementById('metricsChart');
     if (!ctx) return;
@@ -2194,14 +2461,42 @@ function switchPeriod(period, btn) {
 }
 
 // ═══════════════════════════════════════════════
-// ALERTS
+// ALERT ACTIONS — ackAlert(), resolveAlert()
 // ═══════════════════════════════════════════════
+// ackAlert(id)     → POSTs acknowledge_alert. Sets notification status='read'.
+//                    Shows success toast, reloads page after 600ms to reflect change.
+// resolveAlert(id) → POSTs resolve_alert. Sets notification status='resolved'.
+//                    Same reload behavior as ackAlert.
 function ackAlert(id){ fetchPost('acknowledge_alert',`alert_id=${id}`).then(d=>{toast(d.message,'success');setTimeout(()=>location.reload(),600);}); }
 function resolveAlert(id){ fetchPost('resolve_alert',`alert_id=${id}`).then(d=>{toast(d.message,'success');setTimeout(()=>location.reload(),600);}); }
 
 // ═══════════════════════════════════════════════
 // USER MANAGEMENT
 // ═══════════════════════════════════════════════
+// filterUsers()
+//   Filters both the desktop table rows and mobile cards simultaneously.
+//   Checks: name/email text match, role dropdown, status dropdown.
+//   Hides non-matching rows via display:'none' (not DOM removal).
+//   Calls updateSel() after filter to fix selection count.
+//
+// toggleAll()
+//   Checks/unchecks all .ubox checkboxes based on selectAll state.
+//   Then calls updateSel() to sync the button states.
+//
+// updateSel()
+//   Reads all checked .ubox values into selectedIds array.
+//   Updates the "N selected" counter and enables/disables bulk action buttons.
+//
+// bulkDo(type)
+//   Shows confirmation dialog, then POSTs bulk_action with JSON array of IDs.
+//   Admin's own ID is always excluded server-side (safety check in PHP too).
+//
+// openAddUser()    → Resets form fields, shows Add modal
+// openEditUser(id) → Fetches user data via get_user AJAX, populates form, shows Edit modal
+// saveUser()       → Submits form via AJAX (add_user or edit_user based on uid field)
+// doDeactivate(id) → Confirm → deactivate_user AJAX → reload
+// doActivate(id)   → Confirm → activate_user AJAX → reload
+// doDelete(id)     → Confirm → delete_user AJAX → reload
 function filterUsers() {
     const q=document.getElementById('userSearch').value.toLowerCase();
     const role=document.getElementById('roleFilter').value;
@@ -2242,18 +2537,52 @@ function doActivate(id){ confirm_('Activate User','Activate this user?','✅',()
 function doDelete(id){ confirm_('Delete User','Permanently delete this user?','🗑️',()=>{ fetchPost('delete_user',`user_id=${id}`).then(d=>{toast(d.message,d.success?'success':'critical');if(d.success)setTimeout(()=>location.reload(),600);}); }); }
 
 // ═══════════════════════════════════════════════
-// POND MODAL
+// POND DETAIL MODAL — showPondModal(key)
 // ═══════════════════════════════════════════════
+// Opens the #pondModal with detailed information for a specific pond.
+// Reads live values from the PONDS[key] object (updated by IoT simulation).
+// Builds innerHTML dynamically with:
+//   - Status badge with blinking dot
+//   - 3-column metrics grid (organic, temp, pH) with animated meter bars
+//   - Detail rows: staff, location, coordinates, last reading timestamp
+//   - Two action buttons: "Map" (navigates to map tab) and "Refresh"
+// mc (meter class) is computed from organic_level for color-coding the bar fill.
 function showPondModal(key){ const pond=PONDS[key],cfg=POND_COORDS[key]; if(!pond||!cfg) return; const color=getColor(pond.status),mc=pond.organic_level>80?'meter-critical':(pond.organic_level>60?'meter-warning':'meter-safe'); document.getElementById('pondModalTitle').innerHTML=`<i class="fas fa-map-marker-alt" style="color:${color}"></i> ${cfg.name}`; document.getElementById('pondModalBody').innerHTML=`<div style="text-align:center;margin-bottom:.9rem"><span class="badge badge-${pond.status}" style="font-size:.8rem;padding:.4rem 1rem"><span class="dot-blink"></span> ${pond.status.toUpperCase()}</span></div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.7rem;margin-bottom:1rem"><div style="text-align:center;padding:.85rem .4rem;background:var(--bg-elevated);border-radius:var(--r-md);border:1px solid var(--bdr)"><i class="fas fa-seedling ic-organic" style="font-size:1.3rem;display:block;margin-bottom:.3rem"></i><div class="metric-val ic-organic" style="font-size:1.3rem">${pond.organic_level}%</div><div class="metric-lbl">Organic</div><div class="meter" style="margin-top:.4rem"><div class="meter-fill ${mc}" style="width:${pond.organic_level}%"></div></div></div><div style="text-align:center;padding:.85rem .4rem;background:var(--bg-elevated);border-radius:var(--r-md);border:1px solid var(--bdr)"><i class="fas fa-thermometer-half ic-temp" style="font-size:1.3rem;display:block;margin-bottom:.3rem"></i><div class="metric-val ic-temp" style="font-size:1.3rem">${pond.temperature}°C</div><div class="metric-lbl">Temp</div><div class="meter" style="margin-top:.4rem"><div class="meter-fill meter-warning" style="width:${Math.min(100,(pond.temperature-20)*10)}%"></div></div></div><div style="text-align:center;padding:.85rem .4rem;background:var(--bg-elevated);border-radius:var(--r-md);border:1px solid var(--bdr)"><i class="fas fa-flask ic-ph" style="font-size:1.3rem;display:block;margin-bottom:.3rem"></i><div class="metric-val ic-ph" style="font-size:1.3rem">${pond.ph}</div><div class="metric-lbl">pH</div><div class="meter" style="margin-top:.4rem"><div class="meter-fill meter-safe" style="width:${Math.min(100,pond.ph*10)}%"></div></div></div></div><div class="pond-detail-grid"><div class="detail-row"><div class="detail-lbl">Staff</div><div class="detail-val"><i class="fas fa-user" style="color:var(--cyan)"></i> ${pond.staff}</div></div><div class="detail-row"><div class="detail-lbl">Location</div><div class="detail-val"><i class="fas fa-map-pin" style="color:var(--red)"></i> ${pond.location}</div></div><div class="detail-row"><div class="detail-lbl">Coordinates</div><div class="detail-val" style="font-family:var(--fm);font-size:.75rem">${cfg.center[0].toFixed(4)}, ${cfg.center[1].toFixed(4)}</div></div><div class="detail-row"><div class="detail-lbl">Last Reading</div><div class="detail-val" style="font-family:var(--fm);font-size:.75rem">${new Date().toLocaleTimeString('en-US',{hour12:true,timeZone:'Asia/Manila'})}</div></div></div><div style="display:flex;gap:.5rem;margin-top:1rem"><button class="btn btn-primary btn-sm" style="flex:1" onclick="closeModal('pondModal');gotoMap('${key}')"><i class="fas fa-map-marker-alt"></i> Map</button><button class="btn btn-ghost btn-sm" style="flex:1" onclick="refreshPond('${key}');closeModal('pondModal')"><i class="fas fa-sync-alt"></i> Refresh</button></div>`; openModal('pondModal'); }
 
 // ═══════════════════════════════════════════════
-// REPORTS
+// REPORT GENERATION — genReport(type, btn)
 // ═══════════════════════════════════════════════
+// Called when user clicks Daily / Weekly / Monthly report type button.
+// Steps:
+//   1. Marks clicked button as active (removes from others)
+//   2. POSTs generate_report with type parameter
+//   3. Builds the #rptPreview innerHTML dynamically with:
+//      - Report header with type label and date badge
+//      - Stats grid (total ponds, alerts, active staff)
+//      - Status distribution row (safe/warning/critical counts) — daily only
+//      - Or readings/incidents/resolved stats — weekly/monthly
+//      - Metrics mini row (avg organic, avg temp, avg pH)
+//      - Download row with PDF, Excel, CSV buttons (simulation only)
+//   4. Shows success toast confirming report was generated
 function genReport(type,btn){ document.querySelectorAll('.rpt-type-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); fetchPost('generate_report',`type=${type}`).then(d=>{ if(!d.success) return; const r=d.report,labels={daily:'Daily Report',weekly:'Weekly Report',monthly:'Monthly Report'},dates={daily:'<?php echo date('M d, Y'); ?>',weekly:r.week||'',monthly:r.month||''}; const preview=document.getElementById('rptPreview'); preview.innerHTML=`<div class="rpt-header"><div class="rpt-title"><i class="fas fa-chart-bar" style="color:var(--cyan)"></i> ${labels[type]}</div><div class="rpt-date-badge">${dates[type]}</div></div>${type==='daily'?`<div class="rpt-stats"><div class="rpt-stat"><div class="rpt-stat-val">${r.total_ponds}</div><div class="rpt-stat-lbl">Total Ponds</div></div><div class="rpt-stat"><div class="rpt-stat-val" style="color:var(--red)">${r.alerts_generated}</div><div class="rpt-stat-lbl">Alerts</div></div><div class="rpt-stat"><div class="rpt-stat-val" style="color:var(--green)">${r.staff_active}</div><div class="rpt-stat-lbl">Active Staff</div></div></div><div class="rpt-status-row"><div class="rpt-status-item"><div class="rpt-status-val" style="color:var(--green)">${r.safe_ponds}</div><div class="rpt-status-lbl" style="color:var(--green)">Safe</div></div><div class="rpt-status-item"><div class="rpt-status-val" style="color:var(--amber)">${r.warning_ponds}</div><div class="rpt-status-lbl" style="color:var(--amber)">Warning</div></div><div class="rpt-status-item"><div class="rpt-status-val" style="color:var(--red)">${r.critical_ponds}</div><div class="rpt-status-lbl" style="color:var(--red)">Critical</div></div></div>`:`<div class="rpt-stats"><div class="rpt-stat"><div class="rpt-stat-val">${r.total_readings}</div><div class="rpt-stat-lbl">Readings</div></div><div class="rpt-stat"><div class="rpt-stat-val" style="color:var(--amber)">${r.incidents}</div><div class="rpt-stat-lbl">Incidents</div></div><div class="rpt-stat"><div class="rpt-stat-val" style="color:var(--green)">${r.resolved}</div><div class="rpt-stat-lbl">Resolved</div></div></div>`}<div class="metrics-mini"><div class="metric-mini"><i class="fas fa-seedling ic-organic"></i><div><div class="metric-mini-val">${r.avg_organic}%</div><div class="metric-mini-lbl">Avg Organic</div></div></div><div class="metric-mini"><i class="fas fa-thermometer-half ic-temp"></i><div><div class="metric-mini-val">${r.avg_temp}°C</div><div class="metric-mini-lbl">Avg Temp</div></div></div><div class="metric-mini"><i class="fas fa-flask ic-ph"></i><div><div class="metric-mini-val">${r.avg_ph}</div><div class="metric-mini-lbl">Avg pH</div></div></div></div><div class="rpt-dl-row"><button class="btn btn-sm" style="flex:1;background:rgba(255,59,92,.12);color:var(--red);border:1px solid rgba(255,59,92,.25)" onclick="toast('PDF downloaded','success')"><i class="fas fa-file-pdf"></i> PDF</button><button class="btn btn-sm" style="flex:1;background:rgba(57,255,138,.12);color:var(--green);border:1px solid rgba(57,255,138,.25)" onclick="toast('Excel downloaded','success')"><i class="fas fa-file-excel"></i> Excel</button><button class="btn btn-sm" style="flex:1;background:rgba(255,184,0,.12);color:var(--amber);border:1px solid rgba(255,184,0,.25)" onclick="toast('CSV downloaded','success')"><i class="fas fa-file-csv"></i> CSV</button></div>`; toast(`${labels[type]} generated`,'success'); }); }
 
 // ═══════════════════════════════════════════════
 // MODAL HELPERS
 // ═══════════════════════════════════════════════
+// openModal(id)   → Adds .open class to modal element, making it display:flex
+// closeModal(id)  → Removes .open class, hiding the modal
+//
+// Click-outside-to-close: event listener on each .modal element.
+//   If user clicks the backdrop (e.target === modal), calls closeModal().
+//
+// Escape key: document keydown listener closes all open modals.
+//
+// confirm_(title, msg, icon, cb)
+//   Reusable confirmation dialog using #confirmModal.
+//   Sets the title, message text, and emoji icon.
+//   Assigns the callback to #confirmOk onclick.
+//   Closes the modal before executing the callback.
+//   Used by: doDeactivate, doActivate, doDelete, bulkDo, confirmLogout
 function openModal(id){ document.getElementById(id).classList.add('open'); }
 function closeModal(id){ document.getElementById(id).classList.remove('open'); }
 document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeModal(m.id);}));
@@ -2261,13 +2590,27 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape') document.querySelec
 function confirm_(title,msg,icon,cb){ document.getElementById('confirmTitle').textContent=title; document.getElementById('confirmMsg').textContent=msg; document.getElementById('confirmIcon').textContent=icon||'⚠️'; document.getElementById('confirmOk').onclick=()=>{closeModal('confirmModal');cb&&cb();}; openModal('confirmModal'); }
 
 // ═══════════════════════════════════════════════
-// TOAST
+// TOAST NOTIFICATIONS — toast(msg, type)
 // ═══════════════════════════════════════════════
+// Displays a temporary notification in the top-right corner.
+// Parameters:
+//   msg  → Text to display
+//   type → 'success' | 'warning' | 'critical' | 'info'  (default: 'info')
+// Behavior:
+//   - Creates a .toast div, appends to #toastWrap
+//   - Auto-removes after 3.5 seconds with fade-out animation
+//   - Multiple toasts stack vertically (flex-column gap)
+//   - z-index:10001 ensures toasts appear above modals
 function toast(msg,type='info'){ const c=document.getElementById('toastWrap'),t=document.createElement('div'); t.className=`toast ${type}`; const icons={success:'check-circle',warning:'exclamation-triangle',critical:'times-circle',info:'info-circle'}; t.innerHTML=`<i class="fas fa-${icons[type]||'info-circle'}"></i> ${msg}`; c.appendChild(t); setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(50px)';t.style.transition='.3s';setTimeout(()=>t.remove(),300);},3500); }
 
 // ═══════════════════════════════════════════════
-// FETCH HELPER
+// FETCH HELPER — fetchPost(action, body)
 // ═══════════════════════════════════════════════
+// Wrapper for all AJAX requests in this dashboard.
+// Always POSTs to '' (same file URL) with Content-Type: application/x-www-form-urlencoded.
+// Automatically prepends 'action=' to the body string.
+// Returns a Promise that resolves to parsed JSON.
+// Usage: fetchPost('delete_user', `user_id=${id}`).then(d => { ... })
 function fetchPost(action,body=''){return fetch('',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:`action=${action}${body?'&'+body:''}`}).then(r=>r.json());}
 
 // Resize on window change
@@ -2278,8 +2621,19 @@ window.addEventListener('orientationchange',()=>{setTimeout(()=>{if(map)map.inva
 (function(){ const a=document.getElementById('sysAlert'); if(a) setTimeout(()=>{a.style.opacity='0';a.style.transition='.4s';setTimeout(()=>a.remove(),400);},5000); })();
 
 // ═══════════════════════════════════════════════
-// SESSION TIMER
+// SESSION TIMER — initSessionTimer(), updateSessionDuration()
 // ═══════════════════════════════════════════════
+// initSessionTimer()
+//   Counts down from sessionTotal (default 30 min) every second.
+//   Updates #sessionBar progress fill width and #sessionTime countdown text.
+//   At 2 minutes remaining: adds .warning class (bar turns red, blinks),
+//     sets sessionWarned=true so the toast only fires once.
+//   At 0 seconds: shows critical toast and redirects to logout after 2s.
+//
+// updateSessionDuration()
+//   Called when user changes the Session Timeout range slider in Settings.
+//   Resets sessionTotal, sessionLeft, and sessionWarned.
+//   Removes .warning class from the bar if it was previously triggered.
 let sessionTotal  = 30 * 60; // 30 minutes default in seconds
 let sessionLeft   = sessionTotal;
 let sessionWarned = false;
@@ -2320,8 +2674,13 @@ function updateSessionDuration() {
 }
 
 // ═══════════════════════════════════════════════
-// NETWORK STATUS
+// NETWORK STATUS — initNetworkStatus()
 // ═══════════════════════════════════════════════
+// Listens for browser 'offline' and 'online' events.
+// 'offline' → Shows a fixed red banner at the top: "No internet connection"
+// 'online'  → Shows green banner "Connection restored", then hides it after 3s.
+// Banner element: #netBanner (position:fixed, z-index:8000)
+// Does not affect functionality — AJAX will simply fail silently when offline.
 function initNetworkStatus() {
     const banner = document.getElementById('netBanner');
     if (!banner) return;
@@ -2339,8 +2698,15 @@ function initNetworkStatus() {
 }
 
 // ═══════════════════════════════════════════════
-// KEYBOARD SHORTCUTS
+// KEYBOARD SHORTCUTS — initKeyboardShortcuts()
 // ═══════════════════════════════════════════════
+// Adds Alt + number shortcuts for quick section navigation (desktop only).
+// Shortcuts are disabled when a modal is open (prevents accidental navigation).
+// Mapping:
+//   Alt+1 → Overview    Alt+2 → Users       Alt+3 → Ponds
+//   Alt+4 → Map         Alt+5 → Charts      Alt+6 → Alerts
+//   Alt+7 → Reports     Alt+8 → Activities  Alt+9 → IOT Panel
+//   Alt+0 → Settings
 function initKeyboardShortcuts() {
     document.addEventListener('keydown', e => {
         if (document.querySelector('.modal.open')) return;
@@ -2354,8 +2720,14 @@ function initKeyboardShortcuts() {
 }
 
 // ═══════════════════════════════════════════════
-// SWIPE GESTURES (mobile sidebar)
+// SWIPE GESTURES — initSwipeGestures()
 // ═══════════════════════════════════════════════
+// Enables swipe-to-open-sidebar on mobile devices.
+// Records touchstart X,Y position, then on touchend:
+//   - If swipe distance > 70px horizontal AND < 60px vertical:
+//     - Swipe right from left edge (startX < 30) → opens sidebar
+//     - Swipe left while sidebar is open → closes sidebar
+// Uses passive event listeners for better scroll performance.
 function initSwipeGestures() {
     let startX = 0, startY = 0;
     document.addEventListener('touchstart', e => {
@@ -2376,8 +2748,22 @@ function initSwipeGestures() {
 }
 
 // ═══════════════════════════════════════════════
-// IOT MINI CHARTS (per pond)
+// IOT MINI CHARTS — initIotCharts(), loadPondHistory()
 // ═══════════════════════════════════════════════
+// initIotCharts()
+//   Called lazily the first time the IOT Panel section is opened.
+//   Creates a small Chart.js line chart for each pond (canvas #iotChart-{key}).
+//   Chart config: 3 datasets (organic=green, temp=amber, pH=violet),
+//   no axes visible, responsive, 85px height.
+//   Immediately calls loadPondHistory() after chart is created.
+//
+// loadPondHistory(key)
+//   POSTs get_pond_history for a specific pond key.
+//   On success:
+//     - Updates chart data and calls chart.update()
+//     - Rebuilds the tbody of #iotTbody-{key} with a row per reading
+//     - Updates the live value chips (#iot-o-{key}, #iot-t-{key}, #iot-p-{key})
+//       with the most recent value (last item in array)
 const iotCharts = {};
 
 function initIotCharts() {
@@ -2445,8 +2831,18 @@ function loadPondHistory(key) {
 }
 
 // ═══════════════════════════════════════════════
-// SYSTEM STATS
+// SYSTEM STATS — loadSysStats()
 // ═══════════════════════════════════════════════
+// POSTs get_system_stats to the PHP backend.
+// Shows a spinning animation on #sysRefreshIcon while loading.
+// On success, updates these elements in the System Status card:
+//   #ssStat-php    → PHP version (e.g. "PHP 8.2.0")
+//   #ssStat-mem    → Current memory usage in MB
+//   #ssStat-users  → Total user count from DB
+//   #ssStat-ponds  → Total pond count from DB
+//   #ssStat-reads  → Readings in the last 24 hours
+//   #ssStat-alerts → Unread notification count
+//   #ssStat-time   → Server timestamp in PH time format
 function loadSysStats() {
     const icon = document.getElementById('sysRefreshIcon');
     if (icon) icon.style.animation = 'spin 1s linear infinite';
@@ -2467,8 +2863,20 @@ function loadSysStats() {
 }
 
 // ═══════════════════════════════════════════════
-// CSV EXPORT (client-side)
+// CSV EXPORT — exportCSV(type)
 // ═══════════════════════════════════════════════
+// Client-side CSV generation (no server request needed).
+// Data comes from PHP-inlined values at page render time.
+// Supported types:
+//   'ponds'  → Pond key, status, organic%, temp, pH, staff, location, last reading
+//   'alerts' → Pond, message, status, type, created_at
+//   'users'  → Name, email, role, status, assigned pond, last login
+// Process:
+//   1. Builds CSV string with header row + data rows
+//   2. Creates a Blob with type 'text/csv'
+//   3. Creates a temporary <a> with download attribute and clicks it
+//   4. Revokes the object URL to free memory
+//   5. Shows success toast with the filename
 function exportCSV(type) {
     let csv = '', filename = '';
 
@@ -2506,6 +2914,25 @@ function exportCSV(type) {
 // ═══════════════════════════════════════════════
 // SETTINGS HANDLERS
 // ═══════════════════════════════════════════════
+// saveSetting()
+//   Called on any toggle/range change in the Settings section.
+//   Reads current values of all setting inputs and POSTs to save_settings.
+//   Settings are stored in $_SESSION on the server side.
+//   Shows success toast on save.
+//
+// toggleSimulation()
+//   Reads the IOT Simulation toggle state.
+//   Sets simulationRunning flag — NOTE: does not actually stop the setInterval.
+//   (The interval still runs, but a full implementation would clearInterval.)
+//
+// toggleAnimation()
+//   Pauses/resumes all CSS animations on the page by setting
+//   animationPlayState on every DOM element.
+//   Also sets a CSS variable --anim-state for future use.
+//
+// confirmLogout()
+//   Shows the confirm dialog, then redirects to logout.php on confirm.
+//   Bypasses the standard PHP confirm() since this is AJAX-aware.
 let simulationRunning = true;
 let simulationInterval = null;
 
@@ -2543,8 +2970,20 @@ function confirmLogout() {
 }
 
 // ═══════════════════════════════════════════════
-// IOT SECTION INIT (lazy — only when visited)
+// IOT LAZY INITIALIZATION — maybeInitIot()
 // ═══════════════════════════════════════════════
+// IOT charts and system stats are NOT loaded on page load.
+// They are initialized only on the first visit to the IOT Panel section.
+// This improves initial page load time significantly.
+// iotInited flag prevents double initialization on subsequent visits.
+
+// ═══════════════════════════════════════════════
+// showSection OVERRIDE
+// ═══════════════════════════════════════════════
+// The original showSection() is wrapped to inject maybeInitIot().
+// This is a hook pattern — _origShowSection holds the original function,
+// and the new showSection calls it first, then runs the hook.
+// Allows adding section-specific init logic without modifying showSection.
 let iotInited = false;
 
 function maybeInitIot(name) {
@@ -2565,8 +3004,13 @@ showSection = function(name) {
 };
 
 // ═══════════════════════════════════════════════
-// BOOT ALL EXTRAS
+// SECONDARY BOOT — runs after DOMContentLoaded
 // ═══════════════════════════════════════════════
+// These run after the primary DOMContentLoaded block above.
+// initSessionTimer()     → Starts the 30-minute session countdown bar
+// initNetworkStatus()    → Attaches online/offline event listeners
+// initKeyboardShortcuts()→ Attaches Alt+1-0 keyboard nav shortcuts
+// initSwipeGestures()    → Attaches touchstart/touchend for sidebar swipe
 document.addEventListener('DOMContentLoaded', () => {
     initSessionTimer();
     initNetworkStatus();
@@ -2575,8 +3019,12 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ═══════════════════════════════════════════════
-// SEARCH HIGHLIGHT — highlight matched text
+// SEARCH HIGHLIGHT — highlightText()
 // ═══════════════════════════════════════════════
+// Wraps matching text in <mark> tags for visual highlight in search results.
+// Stores original text in dataset.origText to allow restore when query is cleared.
+// Uses a RegExp with 'gi' flags (global + case-insensitive) for matching.
+// Called from the userSearch input listener for both desktop table and mobile cards.
 function highlightText(el, query) {
     if (!el || !query) return;
     const orig = el.dataset.origText || el.textContent;
@@ -2587,8 +3035,16 @@ function highlightText(el, query) {
 }
 
 // ═══════════════════════════════════════════════
-// IDLE DETECTION — warn user if inactive 5 min
+// IDLE DETECTION — auto-warns after 5 min inactivity
 // ═══════════════════════════════════════════════
+// Wrapped in an IIFE so idleTimer and idleWarn are private (not global).
+// resetIdle() is called on any of these user events:
+//   mousedown, mousemove, keydown, touchstart, scroll
+// If no activity for 5 minutes (IDLE_LIMIT = 300,000ms):
+//   - Sets idleWarn = true (prevents duplicate toasts)
+//   - Shows a warning toast: "You've been idle for 5 minutes"
+// Activity resets the timer — idleWarn is cleared on next user interaction.
+// Does NOT log out — only warns. Session timer handles actual logout.
 (function() {
     let idleTimer = null;
     let idleWarn  = false;
@@ -2612,8 +3068,14 @@ function highlightText(el, query) {
 })();
 
 // ═══════════════════════════════════════════════
-// USER TABLE ROW SEARCH HIGHLIGHT
+// USER SEARCH HIGHLIGHT LISTENER
 // ═══════════════════════════════════════════════
+// Attaches to #userSearch input (oninput event).
+// On each keystroke, calls highlightText() on:
+//   - Desktop: all <td> cells in column 2 of #usersTable tbody
+//   - Mobile: all .umc-name elements in mobile cards
+// Works alongside filterUsers() (which handles show/hide logic separately).
+// Both functions share the same search input — one filters rows, one highlights text.
 (function() {
     const searchInput = document.getElementById('userSearch');
     if (!searchInput) return;
@@ -2631,8 +3093,15 @@ function highlightText(el, query) {
 })();
 
 // ═══════════════════════════════════════════════
-// POND CARD CLICK RIPPLE EFFECT
+// RIPPLE CLICK EFFECT — pond/staff/KPI cards
 // ═══════════════════════════════════════════════
+// Event-delegated click listener on the whole document.
+// Targets: .pond-card, .staff-card, .kpi
+// On click, creates a circular <span> that expands from click position
+// using a CSS @keyframes animation (rippleAnim, injected via a <style> tag).
+// The span is removed from DOM after 500ms (animation duration).
+// Uses getBoundingClientRect() to compute click position relative to card.
+// Adds position:relative to card if it was static (required for absolute child).
 document.addEventListener('click', function(e) {
     const card = e.target.closest('.pond-card, .staff-card, .kpi');
     if (!card) return;
@@ -2661,8 +3130,15 @@ document.addEventListener('click', function(e) {
 })();
 
 // ═══════════════════════════════════════════════
-// PAGE VISIBILITY — refresh data on tab focus
+// PAGE VISIBILITY API — silent refresh on tab focus
 // ═══════════════════════════════════════════════
+// Listens for the browser's visibilitychange event.
+// When the user returns to this tab (visibilityState === 'visible'):
+//   - Silently calls get_iot_reading for every pond in PONDS
+//   - Calls updatePondDisplay() if response is successful
+//   - Errors are caught and silently ignored (.catch(() => {}))
+// This keeps pond data fresh even if the user switches tabs for a long time.
+// Does NOT show a toast or spinner — completely transparent to the user.
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
         // Silently refresh ponds when user returns to tab
@@ -2681,6 +3157,9 @@ document.addEventListener('visibilitychange', () => {
 // ═══════════════════════════════════════════════
 // CONSOLE BRANDING
 // ═══════════════════════════════════════════════
+// Styled console output visible in browser DevTools (F12 > Console).
+// Helps developers identify the system and remember available shortcuts.
+// Uses %c CSS formatting supported in Chrome, Firefox, and Edge.
 console.log('%c ██████╗  ██████╗ ', 'color:#00e5ff;font-weight:bold');
 console.log('%c AquaAdmin v2.0 — Organic Matter Detection in Tilapia', 'color:#39ff8a;font-size:13px;font-weight:bold');
 console.log('%c Manolo Fortich, Bukidnon, Philippines', 'color:#8ba8c4');
