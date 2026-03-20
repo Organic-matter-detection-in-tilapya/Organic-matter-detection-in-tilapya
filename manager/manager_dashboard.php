@@ -1,48 +1,99 @@
 <?php
-// manager_dashboard_simulation.php
+// manager_dashboard_enhanced.php
 session_start();
 require_once '../config/config.php';
 
-// Check if user is logged in and is manager - REMOVE the simulation override
+// Check if user is logged in and is manager
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'manager') {
-    header(" /auth/login.php");
+    header("Location: ../auth/login.php");
     exit();
 }
 
 // Set Philippines Time Zone
 date_default_timezone_set('Asia/Manila');
 
-// Get actual user data from session (not simulation override)
+// Get actual user data from session
 $manager_id = $_SESSION['user_id'];
-$manager_name = $_SESSION['full_name']; // This will come from actual login
-$manager_email = $_SESSION['email'];
+$manager_name = $_SESSION['full_name'] ?? 'Manager';
+$manager_email = $_SESSION['email'] ?? 'manager@example.com';
 
 $current_datetime = date('Y-m-d H:i:s');
 $current_time_12hr = date('h:i:s A');
 $current_date = date('F j, Y');
 $current_day = date('l');
 
-// Dummy data based sa database structure mo - lahat naka PH time
+// ============================================
+// POND COORDINATES - MANOLO FORTICH
+// ============================================
+$pond_coordinates = [
+    'A-1' => [
+        'name' => 'Tilapia Pond A-1',
+        'center' => [8.3695, 124.8645],
+        'staff' => 'Pedro Reyes',
+        'bounds' => [
+            [8.3692, 124.8642], [8.3698, 124.8640],
+            [8.3700, 124.8648], [8.3696, 124.8650],
+            [8.3692, 124.8642]
+        ]
+    ],
+    'B-2' => [
+        'name' => 'Tilapia Pond B-2',
+        'center' => [8.3688, 124.8652],
+        'staff' => 'Ana Lopez',
+        'bounds' => [
+            [8.3685, 124.8649], [8.3690, 124.8647],
+            [8.3693, 124.8654], [8.3688, 124.8656],
+            [8.3685, 124.8649]
+        ]
+    ],
+    'C-1' => [
+        'name' => 'Tilapia Pond C-1',
+        'center' => [8.3700, 124.8660],
+        'staff' => 'Roberto Gomez',
+        'bounds' => [
+            [8.3697, 124.8657], [8.3703, 124.8655],
+            [8.3705, 124.8663], [8.3699, 124.8665],
+            [8.3697, 124.8657]
+        ]
+    ]
+];
+
+// ============================================
+// STAFF ASSIGNMENTS
+// ============================================
 $staff_assignments = [
     [
         'user_id' => 3,
         'full_name' => 'Pedro Reyes',
-        'email' => 'staff1@company.com',
+        'email' => 'pedro.reyes@company.com',
         'assigned_pond' => 'A-1',
         'last_login' => date('Y-m-d H:i:s', strtotime('-2 hours')),
-        'status' => 'active'
+        'status' => 'active',
+        'avatar_color' => '#4ade80'
     ],
     [
         'user_id' => 4,
         'full_name' => 'Ana Lopez',
-        'email' => 'staff2@company.com',
+        'email' => 'ana.lopez@company.com',
         'assigned_pond' => 'B-2',
         'last_login' => date('Y-m-d H:i:s', strtotime('-30 minutes')),
-        'status' => 'active'
+        'status' => 'active',
+        'avatar_color' => '#fbbf24'
+    ],
+    [
+        'user_id' => 5,
+        'full_name' => 'Roberto Gomez',
+        'email' => 'roberto.gomez@company.com',
+        'assigned_pond' => 'C-1',
+        'last_login' => date('Y-m-d H:i:s', strtotime('-15 minutes')),
+        'status' => 'active',
+        'avatar_color' => '#a78bfa'
     ]
 ];
 
-// Dummy ponds data na may PH timestamps
+// ============================================
+// PONDS DATA
+// ============================================
 $ponds_data = [
     'A-1' => [
         'pond_id' => 1,
@@ -65,16 +116,29 @@ $ponds_data = [
         'staff' => 'Ana Lopez',
         'location' => 'South Section',
         'last_reading' => date('Y-m-d H:i:s', strtotime('-2 minutes'))
+    ],
+    'C-1' => [
+        'pond_id' => 3,
+        'pond_name' => 'C-1',
+        'organic_level' => 45,
+        'temperature' => 27.5,
+        'ph' => 7.5,
+        'status' => 'safe',
+        'staff' => 'Roberto Gomez',
+        'location' => 'East Section',
+        'last_reading' => date('Y-m-d H:i:s', strtotime('-10 minutes'))
     ]
 ];
 
-// Dummy notifications/alerts na may PH timestamps
+// ============================================
+// NOTIFICATIONS
+// ============================================
 $notifications = [
     [
         'notification_id' => 1,
         'pond_id' => 2,
         'pond_name' => 'B-2',
-        'message' => 'High organic level (82%) detected. Temperature above threshold (31.2°C).',
+        'message' => 'HIGH ALERT: Organic level 82% - Critical! Temperature 31.2°C',
         'status' => 'unread',
         'created_at' => date('Y-m-d H:i:s', strtotime('-2 minutes')),
         'type' => 'critical'
@@ -83,23 +147,25 @@ $notifications = [
         'notification_id' => 2,
         'pond_id' => 1,
         'pond_name' => 'A-1',
-        'message' => 'Organic level approaching threshold (65%). Monitor closely.',
+        'message' => 'WARNING: Organic level 65% - Monitor closely',
         'status' => 'unread',
         'created_at' => date('Y-m-d H:i:s', strtotime('-15 minutes')),
         'type' => 'warning'
     ],
     [
         'notification_id' => 3,
-        'pond_id' => 1,
-        'pond_name' => 'A-1',
-        'message' => 'Routine check: All systems normal',
+        'pond_id' => 3,
+        'pond_name' => 'C-1',
+        'message' => 'INFO: All systems normal - Safe condition',
         'status' => 'read',
         'created_at' => date('Y-m-d H:i:s', strtotime('-1 day')),
         'type' => 'info'
     ]
 ];
 
-// Dummy chart data na may PH time labels
+// ============================================
+// CHART DATA - FIXED
+// ============================================
 $chart_data = [
     'labels' => [],
     'organic' => [],
@@ -107,27 +173,33 @@ $chart_data = [
     'ph' => []
 ];
 
-// Generate 24 hours of dummy data with PH time labels
+// Generate 24 hours of data
 for ($i = 23; $i >= 0; $i--) {
     $hour = date('H:00', strtotime("-$i hours"));
     $chart_data['labels'][] = $hour;
     
-    $trend = sin($i * 0.3) * 10;
-    $chart_data['organic'][] = round(60 + $trend + rand(-3, 3), 1);
-    $chart_data['temperature'][] = round(28 + sin($i * 0.2) * 3 + rand(-1, 1), 1);
-    $chart_data['ph'][] = round(7.2 + sin($i * 0.25) * 0.5 + rand(-1, 1) / 10, 1);
+    // Create smooth trending data
+    $base_organic = 60 + sin($i * 0.3) * 10;
+    $base_temp = 28 + sin($i * 0.2) * 3;
+    $base_ph = 7.2 + sin($i * 0.25) * 0.5;
+    
+    $chart_data['organic'][] = round($base_organic + rand(-2, 2), 1);
+    $chart_data['temperature'][] = round($base_temp + rand(-1, 1), 1);
+    $chart_data['ph'][] = round($base_ph + rand(-0.1, 0.1), 1);
 }
 
-// Dummy readings history na may PH timestamps
+// ============================================
+// RECENT READINGS
+// ============================================
 $recent_readings = [
     [
-        'detection_id' => 101,
-        'pond_name' => 'A-1',
-        'organic_level' => 65,
-        'water_temperature' => 28.5,
-        'ph_level' => 7.2,
-        'detected_at' => date('Y-m-d H:i:s', strtotime('-5 minutes')),
-        'status' => 'warning'
+        'detection_id' => 103,
+        'pond_name' => 'C-1',
+        'organic_level' => 45,
+        'water_temperature' => 27.5,
+        'ph_level' => 7.5,
+        'detected_at' => date('Y-m-d H:i:s', strtotime('-10 minutes')),
+        'status' => 'safe'
     ],
     [
         'detection_id' => 102,
@@ -139,17 +211,17 @@ $recent_readings = [
         'status' => 'critical'
     ],
     [
-        'detection_id' => 100,
+        'detection_id' => 101,
         'pond_name' => 'A-1',
-        'organic_level' => 63,
-        'water_temperature' => 28.2,
-        'ph_level' => 7.1,
-        'detected_at' => date('Y-m-d H:i:s', strtotime('-15 minutes')),
-        'status' => 'normal'
+        'organic_level' => 65,
+        'water_temperature' => 28.5,
+        'ph_level' => 7.2,
+        'detected_at' => date('Y-m-d H:i:s', strtotime('-5 minutes')),
+        'status' => 'warning'
     ]
 ];
 
-// Handle AJAX requests for simulation
+// AJAX Handlers
 if(isset($_POST['action'])) {
     header('Content-Type: application/json');
     
@@ -159,12 +231,11 @@ if(isset($_POST['action'])) {
         $data = ['labels' => [], 'organic' => [], 'temperature' => [], 'ph' => []];
         
         if ($period == 'daily') {
-            $points = 24;
             for ($i = 23; $i >= 0; $i--) {
                 $data['labels'][] = date('H:00', strtotime("-$i hours"));
                 $data['organic'][] = rand(45, 85);
                 $data['temperature'][] = rand(25, 33);
-                $data['ph'][] = rand(65, 85) / 10;
+                $data['ph'][] = round(rand(65, 85) / 10, 1);
             }
         } elseif ($period == 'weekly') {
             $days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -172,14 +243,14 @@ if(isset($_POST['action'])) {
                 $data['labels'][] = $days[$i];
                 $data['organic'][] = rand(45, 85);
                 $data['temperature'][] = rand(25, 33);
-                $data['ph'][] = rand(65, 85) / 10;
+                $data['ph'][] = round(rand(65, 85) / 10, 1);
             }
         } else {
-            for ($i = 30; $i >= 1; $i--) {
+            for ($i = 29; $i >= 0; $i--) {
                 $data['labels'][] = date('M d', strtotime("-$i days"));
                 $data['organic'][] = rand(45, 85);
                 $data['temperature'][] = rand(25, 33);
-                $data['ph'][] = rand(65, 85) / 10;
+                $data['ph'][] = round(rand(65, 85) / 10, 1);
             }
         }
         
@@ -188,41 +259,11 @@ if(isset($_POST['action'])) {
     }
     
     if($_POST['action'] == 'notify_admin') {
-        $notification_id = $_POST['notification_id'] ?? 0;
-        
         echo json_encode([
             'success' => true,
             'message' => 'Admin notified successfully',
-            'notification_id' => $notification_id,
             'timestamp' => date('Y-m-d H:i:s')
         ]);
-        exit;
-    }
-    
-    if($_POST['action'] == 'get_live_updates') {
-        echo json_encode([
-            'notifications' => rand(1, 3),
-            'timestamp' => date('Y-m-d H:i:s'),
-            'time_12hr' => date('h:i:s A'),
-            'message' => 'New data available'
-        ]);
-        exit;
-    }
-    
-    if($_POST['action'] == 'mark_read') {
-        $notification_id = $_POST['notification_id'] ?? 0;
-        
-        echo json_encode([
-            'success' => true,
-            'message' => 'Notification marked as read',
-            'timestamp' => date('Y-m-d H:i:s')
-        ]);
-        exit;
-    }
-    
-    if($_POST['action'] == 'logout') {
-        session_destroy();
-        echo json_encode(['success' => true, 'message' => 'Logged out successfully']);
         exit;
     }
 }
@@ -233,7 +274,7 @@ if(isset($_POST['action'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Organic Tilapia - Manager Dashboard (Simulation)</title>
+    <title>Manager Dashboard - 3 Ponds Monitoring</title>
     
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -248,7 +289,6 @@ if(isset($_POST['action'])) {
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
     <style>
-        /* Copy all your existing CSS here - same as before */
         * {
             margin: 0;
             padding: 0;
@@ -274,7 +314,6 @@ if(isset($_POST['action'])) {
             position: sticky;
             top: 0;
             z-index: 1000;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
         }
 
         .logo-area {
@@ -291,23 +330,13 @@ if(isset($_POST['action'])) {
             border-radius: 12px;
         }
 
-        .simulation-badge {
-            background: rgba(239, 68, 68, 0.2);
-            color: #ef4444;
+        .location-badge {
+            background: rgba(59, 130, 246, 0.2);
+            color: #3b82f6;
             padding: 0.3rem 1rem;
             border-radius: 50px;
             font-size: 0.75rem;
-            border: 1px solid rgba(239, 68, 68, 0.3);
-            display: flex;
-            align-items: center;
-            gap: 0.4rem;
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.7; }
-            100% { opacity: 1; }
+            border: 1px solid rgba(59, 130, 246, 0.3);
         }
 
         .user-badge {
@@ -317,7 +346,6 @@ if(isset($_POST['action'])) {
             display: flex;
             align-items: center;
             gap: 0.5rem;
-            border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .logout-btn {
@@ -326,63 +354,19 @@ if(isset($_POST['action'])) {
             color: white;
             padding: 0.5rem 1rem;
             border-radius: 50px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
             text-decoration: none;
+            transition: all 0.3s ease;
         }
 
         .logout-btn:hover {
             background: rgba(255,255,255,0.1);
-            transform: translateY(-2px);
         }
 
-        /* Main Container */
+        /* Dashboard Container */
         .dashboard-container {
             padding: 2rem;
             max-width: 1600px;
             margin: 0 auto;
-        }
-
-        /* Grid Layouts */
-        .grid-2 {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 1.5rem;
-            margin-bottom: 1.5rem;
-        }
-
-        .grid-3 {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 1.5rem;
-            margin-bottom: 1.5rem;
-        }
-
-        /* Cards */
-        .card {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            border-radius: 24px;
-            padding: 1.5rem;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            transition: all 0.3s ease;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-        }
-
-        .card:hover {
-            transform: translateY(-5px);
-            background: rgba(255, 255, 255, 0.07);
-            border-color: rgba(255, 255, 255, 0.2);
-        }
-
-        .card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1rem;
         }
 
         /* Time Bar */
@@ -405,19 +389,12 @@ if(isset($_POST['action'])) {
             gap: 1.5rem;
         }
 
-        .time-box {
-            background: #1e2f47;
-            padding: 0.4rem 1rem;
+        .ph-time-badge {
+            background: #3b82f6;
+            color: white;
+            padding: 0.2rem 0.8rem;
             border-radius: 50px;
-            font-family: monospace;
-            font-size: 0.9rem;
-        }
-
-        .date-box {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.7rem;
         }
 
         .live-indicator {
@@ -427,6 +404,12 @@ if(isset($_POST['action'])) {
             background: rgba(239, 68, 68, 0.1);
             padding: 0.4rem 1rem;
             border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .live-indicator:hover {
+            background: rgba(239, 68, 68, 0.2);
         }
 
         .live-dot {
@@ -437,133 +420,199 @@ if(isset($_POST['action'])) {
             animation: pulse 1.5s infinite;
         }
 
-        /* Pond Cards */
-        .pond-card {
-            cursor: pointer;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .pond-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 4px;
-            transition: all 0.3s ease;
-        }
-
-        .pond-card[data-status="safe"]::before {
+        .live-dot.running {
             background: #4ade80;
-            box-shadow: 0 0 20px #4ade80;
         }
 
-        .pond-card[data-status="warning"]::before {
-            background: #fbbf24;
-            box-shadow: 0 0 20px #fbbf24;
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
         }
 
-        .pond-card[data-status="critical"]::before {
-            background: #ef4444;
-            animation: pulseGlow 2s infinite;
-        }
-
-        @keyframes pulseGlow {
-            0% { opacity: 1; box-shadow: 0 0 20px #ef4444; }
-            50% { opacity: 0.7; box-shadow: 0 0 40px #ef4444; }
-            100% { opacity: 1; box-shadow: 0 0 20px #ef4444; }
-        }
-
-        .metrics-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 1rem;
-            margin: 1rem 0;
-        }
-
-        .metric-item {
-            text-align: center;
-            padding: 0.8rem;
-            background: rgba(255, 255, 255, 0.03);
-            border-radius: 12px;
-            transition: all 0.3s ease;
-        }
-
-        .metric-item:hover {
-            background: rgba(255, 255, 255, 0.07);
-            transform: scale(1.05);
-        }
-
-        .metric-icon.organic { color: #4ade80; font-size: 1.2rem; }
-        .metric-icon.temp { color: #fbbf24; font-size: 1.2rem; }
-        .metric-icon.ph { color: #a78bfa; font-size: 1.2rem; }
-
-        .status-badge {
-            padding: 0.3rem 0.8rem;
-            border-radius: 50px;
-            font-size: 0.8rem;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.3rem;
-        }
-
-        .timestamp {
-            font-size: 0.8rem;
-            color: rgba(255, 255, 255, 0.5);
-            margin-top: 0.5rem;
+        /* Section Title */
+        .section-title {
             display: flex;
             align-items: center;
             gap: 0.5rem;
+            margin: 2rem 0 1.5rem;
         }
 
-        /* Staff List */
-        .staff-list {
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
+        .section-title i {
+            color: #3b82f6;
+            font-size: 1.3rem;
         }
 
-        .staff-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 1rem;
-            background: rgba(255, 255, 255, 0.03);
-            border-radius: 12px;
+        .section-title h2 {
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+
+        /* Staff Grid */
+        .staff-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .staff-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 1.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
             cursor: pointer;
             transition: all 0.3s ease;
-            border: 1px solid rgba(255, 255, 255, 0.05);
         }
 
-        .staff-item:hover {
-            background: rgba(255, 255, 255, 0.07);
-            transform: translateX(5px);
-            border-color: rgba(59, 130, 246, 0.3);
+        .staff-card:hover {
+            transform: translateY(-5px);
+            border-color: #3b82f6;
         }
 
         .staff-avatar {
-            width: 40px;
-            height: 40px;
-            background: #2a3f5e;
-            border-radius: 10px;
+            width: 50px;
+            height: 50px;
+            border-radius: 15px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-weight: bold;
-            border: 2px solid #3b82f6;
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
         }
 
-        /* Map */
+        /* Ponds Grid */
+        .ponds-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .pond-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 1.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .pond-card:hover {
+            transform: translateY(-5px);
+            border-color: #3b82f6;
+        }
+
+        .pond-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 0.8rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .pond-name {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .pond-metrics {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.8rem;
+            margin: 1rem 0;
+        }
+
+        .metric-box {
+            background: rgba(255, 255, 255, 0.03);
+            padding: 0.8rem;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-top: 0.3rem;
+        }
+
+        /* Map Container */
+        .map-container {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .map-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
         #map {
             height: 400px;
-            border-radius: 20px;
+            width: 100%;
+            border-radius: 16px;
             overflow: hidden;
-            border: 2px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
-        /* Report Buttons */
+        .map-legend {
+            display: flex;
+            gap: 1rem;
+            background: rgba(13, 23, 41, 0.8);
+            padding: 0.5rem 1rem;
+            border-radius: 50px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.8rem;
+        }
+
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        /* Chart Container */
+        .chart-container {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
         .report-buttons {
             display: flex;
             gap: 0.5rem;
@@ -583,22 +632,50 @@ if(isset($_POST['action'])) {
         .report-btn.active {
             background: #2a3f5e;
             border-color: #3b82f6;
-            box-shadow: 0 0 15px rgba(59, 130, 246, 0.3);
         }
 
         .report-btn:hover {
             background: rgba(255, 255, 255, 0.1);
-            transform: translateY(-2px);
         }
 
-        /* Chart Container */
-        .chart-container {
-            height: 300px;
-            margin-top: 1rem;
+        .chart-wrapper {
             position: relative;
+            height: 350px;
+            width: 100%;
         }
 
-        /* Alerts */
+        /* Readings Grid */
+        .readings-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .reading-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 1.2rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .reading-card:hover {
+            transform: translateY(-3px);
+            border-color: #3b82f6;
+        }
+
+        /* Notifications */
+        .notifications-container {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 1.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
         .alert-item {
             display: flex;
             align-items: center;
@@ -606,40 +683,12 @@ if(isset($_POST['action'])) {
             padding: 1rem;
             border-radius: 12px;
             margin-bottom: 0.8rem;
-            cursor: pointer;
-            animation: slideIn 0.5s ease;
-            border: 1px solid transparent;
+            animation: slideIn 0.3s ease;
         }
 
-        .alert-item:hover {
-            border-color: rgba(255, 255, 255, 0.2);
-        }
-
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateX(-20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateX(0);
-            }
-        }
-
-        .alert-item.critical {
-            background: rgba(239, 68, 68, 0.15);
-            border-left: 4px solid #ef4444;
-        }
-
-        .alert-item.warning {
-            background: rgba(251, 191, 36, 0.15);
-            border-left: 4px solid #fbbf24;
-        }
-
-        .alert-item.info {
-            background: rgba(59, 130, 246, 0.15);
-            border-left: 4px solid #3b82f6;
-        }
+        .alert-item.critical { background: rgba(239, 68, 68, 0.15); border-left: 4px solid #ef4444; }
+        .alert-item.warning { background: rgba(251, 191, 36, 0.15); border-left: 4px solid #fbbf24; }
+        .alert-item.info { background: rgba(59, 130, 246, 0.15); border-left: 4px solid #3b82f6; }
 
         .notify-btn {
             background: #2a3f5e;
@@ -649,14 +698,10 @@ if(isset($_POST['action'])) {
             border-radius: 8px;
             cursor: pointer;
             transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
         }
 
         .notify-btn:hover {
             background: #3b82f6;
-            transform: translateY(-2px);
         }
 
         .notify-btn.small {
@@ -664,937 +709,873 @@ if(isset($_POST['action'])) {
             font-size: 0.8rem;
         }
 
-        /* Notification Badge */
-        .notification-badge {
-            background: #ef4444;
-            color: white;
-            border-radius: 50%;
-            padding: 0.2rem 0.5rem;
-            font-size: 0.7rem;
-            margin-left: 0.5rem;
-            animation: pulse 2s infinite;
-        }
-
-        /* Map Legend */
-        .map-legend {
-            display: flex;
-            gap: 1rem;
-            background: rgba(13, 23, 41, 0.8);
-            padding: 0.5rem 1rem;
+        /* Footer */
+        .footer {
+            margin-top: 2rem;
+            padding: 1rem;
+            text-align: center;
+            background: rgba(255,255,255,0.02);
             border-radius: 50px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: rgba(255,255,255,0.4);
         }
 
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 0.4rem;
-            font-size: 0.8rem;
+        /* Animations */
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
         }
 
-        .legend-color {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
+        @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
         }
 
-        /* PH Time Badge */
-        .ph-time-badge {
-            background: #3b82f6;
-            color: white;
-            padding: 0.2rem 0.8rem;
-            border-radius: 50px;
-            font-size: 0.7rem;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.3rem;
+        @keyframes slideOutRight {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         /* Responsive */
         @media (max-width: 1200px) {
-            .grid-2, .grid-3 {
+            .staff-grid, .ponds-grid, .readings-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .staff-grid, .ponds-grid, .readings-grid {
                 grid-template-columns: 1fr;
             }
-            
-            .dashboard-container {
-                padding: 1rem;
-            }
-            
-            .time-bar {
-                flex-direction: column;
-                align-items: flex-start;
-            }
+            #map { height: 300px; }
         }
     </style>
 </head>
 <body>
-    <!-- Navbar -->
-    <nav class="navbar">
-        <div class="logo-area">
-            <i class="fas fa-fish logo"></i>
-            <span style="font-weight: 600;">Organic Tilapia Monitoring System</span>
-            <span class="simulation-badge">
-                <i class="fas fa-sim-card"></i> SIMULATION MODE
-            </span>
-            <span id="notificationBadge" class="notification-badge" style="display: none;">0</span>
-        </div>
-        <div style="display: flex; align-items: center; gap: 1rem;">
-            <div class="user-badge">
-                <i class="fas fa-user-tie"></i>
-                <span>Manager – <?php echo htmlspecialchars($manager_name); ?></span>
-            <a href="../auth/logout.php" class="logout-btn" onclick="return confirm('Logout from Manager Dashboard?')">
-    <i class="fas fa-sign-out-alt"></i> Logout
-</a>
-        </div>
-    </nav>
 
-    <div class="dashboard-container">
-        <!-- Time Bar with PH Time -->
-        <div class="time-bar">
-            <div class="time-display">
-                <div class="date-box">
-                    <i class="fas fa-calendar-alt" style="color: #3b82f6;"></i>
-                    <span><?php echo $current_date; ?></span>
-                    <span class="ph-time-badge">
-                        <i class="fas fa-map-marker-alt"></i> PH Time
-                    </span>
-                </div>
-                <div class="time-box" id="currentTime">
-                    <?php echo $current_time_12hr; ?>
-                </div>
-                <div style="color: rgba(255,255,255,0.5); font-size: 0.9rem;">
-                    <i class="fas fa-sun"></i> <?php echo $current_day; ?>
-                </div>
-            </div>
-            <div class="live-indicator">
-                <span class="live-dot"></span>
-                <span>Simulation Mode - Live Data Streaming</span>
+<!-- Navbar -->
+<nav class="navbar">
+    <div class="logo-area">
+        <i class="fas fa-fish logo"></i>
+        <span style="font-weight: 600;">Pond Manager System</span>
+        <span class="location-badge">
+            <i class="fas fa-map-marker-alt"></i> Manolo Fortich
+        </span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 1rem;">
+        <div class="user-badge">
+            <i class="fas fa-user-tie"></i>
+            <span><?php echo htmlspecialchars($manager_name); ?></span>
+        </div>
+        <a href="../auth/logout.php" class="logout-btn">
+            <i class="fas fa-sign-out-alt"></i> Logout
+        </a>
+    </div>
+</nav>
+
+<div class="dashboard-container">
+    
+    <!-- Time Bar -->
+    <div class="time-bar">
+        <div class="time-display">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <i class="fas fa-calendar-alt" style="color: #3b82f6;"></i>
+                <span><?php echo $current_date; ?></span>
+                <span class="ph-time-badge">
+                    <i class="fas fa-clock"></i> <?php echo $current_time_12hr; ?>
+                </span>
             </div>
         </div>
-
-        <!-- Rest of your HTML remains the same -->
-        <!-- Staff & Pond Assignments -->
-        <div class="grid-2">
-            <!-- Staff Assignments Card -->
-            <div class="card">
-                <div class="card-header">
-                    <span><i class="fas fa-users" style="color: #3b82f6;"></i> Staff Assignments</span>
-                    <span style="font-size: 0.8rem; color: rgba(255,255,255,0.5);">
-                        <i class="fas fa-sync-alt fa-spin"></i> Live
-                    </span>
-                </div>
-                <div class="staff-list">
-                    <?php foreach($staff_assignments as $staff): ?>
-                    <div class="staff-item" onclick="highlightStaffPond('<?php echo $staff['assigned_pond']; ?>', '<?php echo $staff['full_name']; ?>')">
-                        <div style="display: flex; align-items: center; gap: 1rem; width: 100%;">
-                            <div class="staff-avatar">
-                                <?php 
-                                    $initials = '';
-                                    $names = explode(' ', $staff['full_name']);
-                                    foreach($names as $n) {
-                                        $initials .= strtoupper(substr($n, 0, 1));
-                                    }
-                                    echo $initials;
-                                ?>
-                            </div>
-                            <div style="flex: 1;">
-                                <div style="display: flex; justify-content: space-between; align-items: center;">
-                                    <strong><?php echo htmlspecialchars($staff['full_name']); ?></strong>
-                                    <span class="status-badge" style="background: rgba(74,222,128,0.2); color: #4ade80;">
-                                        <i class="fas fa-circle"></i> Active
-                                    </span>
-                                </div>
-                                <div style="display: flex; gap: 1rem; margin-top: 0.3rem; font-size: 0.85rem; color: rgba(255,255,255,0.6);">
-                                    <span><i class="fas fa-map-marker-alt"></i> Pond <?php echo $staff['assigned_pond'] ?? 'Unassigned'; ?></span>
-                                    <span><i class="far fa-clock"></i> Last: <?php echo date('h:i A', strtotime($staff['last_login'])); ?></span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-
-            <!-- Ponds Overview -->
-            <div class="grid-2" style="margin: 0; gap: 1rem;">
-                <?php foreach($ponds_data as $pond_name => $data): ?>
-                <div class="card pond-card" data-status="<?php echo $data['status']; ?>" onclick="highlightPond('<?php echo $pond_name; ?>')">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                        <h3 style="display: flex; align-items: center; gap: 0.5rem;">
-                            <i class="fas fa-map-marker-alt" style="color: <?php 
-                                echo $data['status'] == 'safe' ? '#4ade80' : 
-                                    ($data['status'] == 'warning' ? '#fbbf24' : '#ef4444'); 
-                            ?>;"></i>
-                            Pond <?php echo $pond_name; ?>
-                        </h3>
-                        <span class="status-badge" style="background: <?php 
-                            echo $data['status'] == 'safe' ? 'rgba(74,222,128,0.2)' : 
-                                ($data['status'] == 'warning' ? 'rgba(251,191,36,0.2)' : 'rgba(239,68,68,0.2)'); 
-                        ?>; color: <?php 
-                            echo $data['status'] == 'safe' ? '#4ade80' : 
-                                ($data['status'] == 'warning' ? '#fbbf24' : '#ef4444'); 
-                        ?>;">
-                            <i class="fas fa-circle"></i> <?php echo ucfirst($data['status']); ?>
-                        </span>
-                    </div>
-                    
-                    <div style="font-size: 0.85rem; color: rgba(255,255,255,0.6); margin-bottom: 0.8rem;">
-                        <i class="fas fa-user"></i> <?php echo $data['staff']; ?> • 
-                        <i class="fas fa-map-pin"></i> <?php echo $data['location']; ?>
-                    </div>
-                    
-                    <div class="metrics-grid">
-                        <div class="metric-item">
-                            <i class="fas fa-seedling metric-icon organic"></i>
-                            <div style="font-size: 1.3rem; font-weight: 600;"><?php echo $data['organic_level']; ?>%</div>
-                            <small style="color: rgba(255,255,255,0.5);">Organic</small>
-                        </div>
-                        <div class="metric-item">
-                            <i class="fas fa-thermometer-half metric-icon temp"></i>
-                            <div style="font-size: 1.3rem; font-weight: 600;"><?php echo $data['temperature']; ?>°C</div>
-                            <small style="color: rgba(255,255,255,0.5);">Temp</small>
-                        </div>
-                        <div class="metric-item">
-                            <i class="fas fa-flask metric-icon ph"></i>
-                            <div style="font-size: 1.3rem; font-weight: 600;"><?php echo $data['ph']; ?></div>
-                            <small style="color: rgba(255,255,255,0.5);">pH</small>
-                        </div>
-                    </div>
-                    
-                    <div class="timestamp">
-                        <i class="far fa-clock"></i> Last reading: <?php echo date('h:i:s A', strtotime($data['last_reading'])); ?>
-                        <?php 
-                        $time_diff = time() - strtotime($data['last_reading']);
-                        if($time_diff < 60) {
-                            echo '<span style="color: #4ade80; margin-left: auto;">Just now</span>';
-                        } elseif($time_diff < 3600) {
-                            $mins = floor($time_diff / 60);
-                            echo '<span style="color: #fbbf24; margin-left: auto;">' . $mins . ' min ago</span>';
-                        } else {
-                            $hours = floor($time_diff / 3600);
-                            echo '<span style="color: #ef4444; margin-left: auto;">' . $hours . ' hr ago</span>';
-                        }
-                        ?>
-                    </div>
-                </div>
-                <?php endforeach; ?>
-            </div>
-        </div>
-
-        <!-- Live Map -->
-        <div class="card" style="margin-bottom: 1.5rem;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 1rem;">
-                <span><i class="fas fa-map-marked-alt" style="color: #3b82f6;"></i> Live Pond Map - Manolo Fortich</span>
-                <div class="map-legend">
-                    <div class="legend-item">
-                        <div class="legend-color" style="background: #4ade80;"></div>
-                        <span>Safe</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-color" style="background: #fbbf24;"></div>
-                        <span>Warning</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-color" style="background: #ef4444;"></div>
-                        <span>Critical</span>
-                    </div>
-                </div>
-            </div>
-            <div id="map"></div>
-            <div style="margin-top: 0.5rem; text-align: right; font-size: 0.8rem; color: rgba(255,255,255,0.4);">
-                <i class="far fa-clock"></i> Map data simulated • PH Time: <span id="mapTimestamp"><?php echo date('h:i:s A'); ?></span>
-            </div>
-        </div>
-
-        <!-- Live Metrics and Staff Monitoring -->
-        <div class="grid-2">
-            <!-- Live Metrics Trends -->
-            <div class="card">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 1rem;">
-                    <span><i class="fas fa-chart-line" style="color: #3b82f6;"></i> Live Metrics Trends</span>
-                    <div class="report-buttons">
-                        <button class="report-btn active" onclick="updateChartSimulation('daily', this)">Daily</button>
-                        <button class="report-btn" onclick="updateChartSimulation('weekly', this)">Weekly</button>
-                        <button class="report-btn" onclick="updateChartSimulation('monthly', this)">Monthly</button>
-                    </div>
-                </div>
-                <div class="chart-container">
-                    <canvas id="metricsChart"></canvas>
-                </div>
-                <div style="display: flex; justify-content: space-between; margin-top: 1rem; font-size: 0.8rem; color: rgba(255,255,255,0.4);">
-                    <span><i class="fas fa-chart-line"></i> Simulation data (PH Time)</span>
-                    <span>Last updated: <span id="chartTimestamp"><?php echo date('h:i:s A'); ?></span></span>
-                </div>
-            </div>
-
-            <!-- Recent Readings / Staff Monitoring -->
-            <div class="card">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                    <span><i class="fas fa-history" style="color: #3b82f6;"></i> Recent Pond Readings</span>
-                    <span class="status-badge" style="background: rgba(59,130,246,0.2); color: #3b82f6;">
-                        <i class="fas fa-sync-alt fa-spin"></i> Live Updates
-                    </span>
-                </div>
-                <div class="staff-list">
-                    <?php foreach($recent_readings as $reading): ?>
-                    <div class="staff-item" onclick="highlightPond('<?php echo $reading['pond_name']; ?>')">
-                        <div style="width: 100%;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                                <strong><i class="fas fa-map-marker-alt"></i> Pond <?php echo $reading['pond_name']; ?></strong>
-                                <span class="status-badge" style="background: <?php 
-                                    echo $reading['status'] == 'critical' ? 'rgba(239,68,68,0.2)' : 
-                                        ($reading['status'] == 'warning' ? 'rgba(251,191,36,0.2)' : 'rgba(74,222,128,0.2)'); 
-                                ?>; color: <?php 
-                                    echo $reading['status'] == 'critical' ? '#ef4444' : 
-                                        ($reading['status'] == 'warning' ? '#fbbf24' : '#4ade80'); 
-                                ?>;">
-                                    <?php echo ucfirst($reading['status']); ?>
-                                </span>
-                            </div>
-                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; background: rgba(255,255,255,0.02); padding: 0.8rem; border-radius: 8px;">
-                                <div>
-                                    <small style="color: rgba(255,255,255,0.5);">Organic</small>
-                                    <div style="font-weight: 600; color: #4ade80;"><?php echo $reading['organic_level']; ?>%</div>
-                                </div>
-                                <div>
-                                    <small style="color: rgba(255,255,255,0.5);">Temp</small>
-                                    <div style="font-weight: 600; color: #fbbf24;"><?php echo $reading['water_temperature']; ?>°C</div>
-                                </div>
-                                <div>
-                                    <small style="color: rgba(255,255,255,0.5);">pH</small>
-                                    <div style="font-weight: 600; color: #a78bfa;"><?php echo $reading['ph_level']; ?></div>
-                                </div>
-                            </div>
-                            <div style="margin-top: 0.5rem; font-size: 0.75rem; color: rgba(255,255,255,0.4); display: flex; justify-content: space-between;">
-                                <span><i class="far fa-clock"></i> <?php echo date('h:i:s A', strtotime($reading['detected_at'])); ?></span>
-                                <?php 
-                                $time_diff = time() - strtotime($reading['detected_at']);
-                                if($time_diff < 60) {
-                                    echo '<span style="color: #4ade80;">Just now</span>';
-                                } elseif($time_diff < 3600) {
-                                    $mins = floor($time_diff / 60);
-                                    echo '<span style="color: #fbbf24;">' . $mins . ' min ago</span>';
-                                }
-                                ?>
-                            </div>
-                        </div>
-                    </div>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-        </div>
-
-        <!-- Notifications / Alerts Section -->
-        <div class="card" style="margin-top: 1.5rem;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 1rem;">
-                <span><i class="fas fa-bell" style="color: #ef4444;"></i> Notifications & Alerts</span>
-                <button class="notify-btn" onclick="notifyAllAdminSimulation()">
-                    <i class="fas fa-bell"></i> Notify All Admin
-                </button>
-            </div>
-            <div>
-                <?php 
-                $unread_count = 0;
-                foreach($notifications as $notification): 
-                    if($notification['status'] == 'unread') $unread_count++;
-                ?>
-                <div class="alert-item <?php echo $notification['type']; ?>" onclick="markNotificationReadSimulation(<?php echo $notification['notification_id']; ?>)">
-                    <i class="fas fa-<?php 
-                        echo $notification['type'] == 'critical' ? 'exclamation-circle' : 
-                            ($notification['type'] == 'warning' ? 'exclamation-triangle' : 'info-circle'); 
-                    ?>" style="font-size: 1.2rem; color: <?php 
-                        echo $notification['type'] == 'critical' ? '#ef4444' : 
-                            ($notification['type'] == 'warning' ? '#fbbf24' : '#3b82f6'); 
-                    ?>;"></i>
-                    <div style="flex: 1;">
-                        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.3rem; flex-wrap: wrap;">
-                            <strong>Pond <?php echo $notification['pond_name']; ?></strong>
-                            <?php if($notification['status'] == 'unread'): ?>
-                            <span style="background: #ef4444; color: white; padding: 0.2rem 0.5rem; border-radius: 50px; font-size: 0.7rem;">NEW</span>
-                            <?php endif; ?>
-                            <span style="font-size: 0.7rem; color: rgba(255,255,255,0.4);">
-                                <i class="far fa-clock"></i> <?php echo date('h:i A', strtotime($notification['created_at'])); ?>
-                            </span>
-                        </div>
-                        <p style="font-size: 0.9rem; color: rgba(255,255,255,0.8); margin-bottom: 0.3rem;">
-                            <?php echo $notification['message']; ?>
-                        </p>
-                        <small style="color: rgba(255,255,255,0.4);">
-                            <?php 
-                            $time_diff = time() - strtotime($notification['created_at']);
-                            if($time_diff < 60) {
-                                echo 'Just now';
-                            } elseif($time_diff < 3600) {
-                                $mins = floor($time_diff / 60);
-                                echo $mins . ' minute' . ($mins > 1 ? 's' : '') . ' ago';
-                            } elseif($time_diff < 86400) {
-                                $hours = floor($time_diff / 3600);
-                                echo $hours . ' hour' . ($hours > 1 ? 's' : '') . ' ago';
-                            } else {
-                                $days = floor($time_diff / 86400);
-                                echo $days . ' day' . ($days > 1 ? 's' : '') . ' ago';
-                            }
-                            ?>
-                        </small>
-                    </div>
-                    <?php if($notification['type'] == 'critical' || $notification['type'] == 'warning'): ?>
-                    <button class="notify-btn small" onclick="event.stopPropagation(); notifyAdminSimulation(<?php echo $notification['notification_id']; ?>)">
-                        <i class="fas fa-bell"></i> Notify Admin
-                    </button>
-                    <?php endif; ?>
-                </div>
-                <?php endforeach; ?>
-                
-                <?php if(empty($notifications)): ?>
-                <div style="text-align: center; padding: 2rem; color: rgba(255,255,255,0.5);">
-                    <i class="fas fa-check-circle" style="font-size: 3rem; color: #4ade80; margin-bottom: 1rem;"></i>
-                    <p>No notifications. All systems normal.</p>
-                </div>
-                <?php endif; ?>
-            </div>
-            
-            <?php if($unread_count > 0): ?>
-            <div style="margin-top: 1rem; padding: 0.5rem; background: rgba(239,68,68,0.1); border-radius: 8px; text-align: center; font-size: 0.9rem;">
-                <i class="fas fa-info-circle"></i> You have <strong><?php echo $unread_count; ?></strong> unread notification<?php echo $unread_count > 1 ? 's' : ''; ?>
-            </div>
-            <?php endif; ?>
-        </div>
-        
-        <!-- Simulation Footer with PH Time -->
-        <div style="margin-top: 2rem; padding: 1rem; text-align: center; background: rgba(255,255,255,0.02); border-radius: 50px; font-size: 0.85rem; color: rgba(255,255,255,0.4); border: 1px solid rgba(255,255,255,0.05);">
-            <i class="fas fa-sim-card"></i> SIMULATION MODE - All data shown are for demonstration purposes only • 
-            <span>PH Time: <span id="footerTimestamp"><?php echo date('h:i:s A'); ?></span></span>
-            <span style="margin-left: 1rem; background: #1e2f47; padding: 0.2rem 0.5rem; border-radius: 50px; font-size: 0.7rem;">
-                <i class="fas fa-map-marker-alt"></i> Asia/Manila
-            </span>
+        <div class="live-indicator" id="simulationToggle" onclick="toggleSimulation()">
+            <span class="live-dot running" id="simulationDot"></span>
+            <span id="simulationStatus">Simulation Running</span>
         </div>
     </div>
 
-    <script>
-        // Set timezone to PH time in JavaScript
-        const phTimeOptions = { 
+    <!-- Staff Section -->
+    <div class="section-title">
+        <i class="fas fa-users"></i>
+        <h2>Staff Assignments</h2>
+    </div>
+    
+    <div class="staff-grid">
+        <?php foreach($staff_assignments as $staff): ?>
+        <div class="staff-card" onclick="highlightPond('<?php echo $staff['assigned_pond']; ?>')">
+            <div class="staff-avatar" style="background: <?php echo $staff['avatar_color']; ?>;">
+                <?php 
+                    $initials = '';
+                    $names = explode(' ', $staff['full_name']);
+                    foreach($names as $n) {
+                        $initials .= substr($n, 0, 1);
+                    }
+                    echo $initials;
+                ?>
+            </div>
+            <div style="font-size: 1.1rem; font-weight: 600;"><?php echo $staff['full_name']; ?></div>
+            <div style="background: rgba(59,130,246,0.2); color: #3b82f6; padding: 0.2rem 0.8rem; border-radius: 50px; display: inline-block; margin: 0.5rem 0;">
+                <i class="fas fa-map-marker-alt"></i> Pond <?php echo $staff['assigned_pond']; ?>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.3rem; color: #4ade80;">
+                <i class="fas fa-circle"></i> Active
+                <span style="margin-left: auto; color: rgba(255,255,255,0.4); font-size: 0.7rem;">
+                    <i class="far fa-clock"></i> <?php echo date('h:i A', strtotime($staff['last_login'])); ?>
+                </span>
+            </div>
+        </div>
+        <?php endforeach; ?>
+    </div>
+
+    <!-- Ponds Section -->
+    <div class="section-title">
+        <i class="fas fa-water"></i>
+        <h2>Pond Status</h2>
+    </div>
+    
+    <div class="ponds-grid">
+        <?php foreach($ponds_data as $pond_name => $data): ?>
+        <div class="pond-card" onclick="highlightPond('<?php echo $pond_name; ?>')" id="pond-<?php echo $pond_name; ?>">
+            <div class="pond-header">
+                <div class="pond-name">
+                    <span class="status-indicator" style="background: <?php 
+                        echo $data['status'] == 'safe' ? '#4ade80' : 
+                            ($data['status'] == 'warning' ? '#fbbf24' : '#ef4444'); 
+                    ?>;"></span>
+                    Pond <?php echo $pond_name; ?>
+                </div>
+                <span style="color: <?php 
+                    echo $data['status'] == 'safe' ? '#4ade80' : 
+                        ($data['status'] == 'warning' ? '#fbbf24' : '#ef4444'); 
+                ?>; font-weight: 600;">
+                    <i class="fas fa-<?php 
+                        echo $data['status'] == 'safe' ? 'check-circle' : 
+                            ($data['status'] == 'warning' ? 'exclamation-triangle' : 'exclamation-circle'); 
+                    ?>"></i> <?php echo ucfirst($data['status']); ?>
+                </span>
+            </div>
+            
+            <div style="background: rgba(255,255,255,0.03); padding: 0.5rem; border-radius: 10px; margin-bottom: 1rem;">
+                <i class="fas fa-user"></i> <?php echo $data['staff']; ?> • 
+                <i class="fas fa-map-pin"></i> <?php echo $data['location']; ?>
+            </div>
+            
+            <div class="pond-metrics">
+                <div class="metric-box">
+                    <i class="fas fa-seedling" style="color: #4ade80;"></i>
+                    <div class="metric-value" id="organic-<?php echo $pond_name; ?>"><?php echo $data['organic_level']; ?></div>
+                    <small>mg/L</small>
+                </div>
+                <div class="metric-box">
+                    <i class="fas fa-thermometer-half" style="color: #fbbf24;"></i>
+                    <div class="metric-value" id="temp-<?php echo $pond_name; ?>"><?php echo $data['temperature']; ?>°</div>
+                    <small>°C</small>
+                </div>
+                <div class="metric-box">
+                    <i class="fas fa-flask" style="color: #a78bfa;"></i>
+                    <div class="metric-value" id="ph-<?php echo $pond_name; ?>"><?php echo $data['ph']; ?></div>
+                    <small>pH</small>
+                </div>
+            </div>
+            
+            <div style="margin-top: 1rem; font-size: 0.75rem; color: rgba(255,255,255,0.4);">
+                <i class="far fa-clock"></i> <span id="time-<?php echo $pond_name; ?>"><?php echo date('h:i:s A', strtotime($data['last_reading'])); ?></span>
+            </div>
+        </div>
+        <?php endforeach; ?>
+    </div>
+
+    <!-- Map Section -->
+    <div class="map-container">
+        <div class="map-header">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <i class="fas fa-map-marked-alt" style="color: #3b82f6;"></i>
+                <h3>Pond Locations - Manolo Fortich</h3>
+            </div>
+            <div class="map-legend">
+                <div class="legend-item"><div class="legend-color" style="background: #4ade80;"></div><span>Safe</span></div>
+                <div class="legend-item"><div class="legend-color" style="background: #fbbf24;"></div><span>Warning</span></div>
+                <div class="legend-item"><div class="legend-color" style="background: #ef4444;"></div><span>Critical</span></div>
+            </div>
+        </div>
+        <div id="map"></div>
+    </div>
+
+    <!-- Chart Section -->
+    <div class="chart-container">
+        <div class="chart-header">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <i class="fas fa-chart-line" style="color: #3b82f6;"></i>
+                <h3>Live Metrics Trends</h3>
+            </div>
+            <div class="report-buttons">
+                <button class="report-btn active" onclick="updateChart('daily', this)">Daily</button>
+                <button class="report-btn" onclick="updateChart('weekly', this)">Weekly</button>
+                <button class="report-btn" onclick="updateChart('monthly', this)">Monthly</button>
+            </div>
+        </div>
+        <div class="chart-wrapper">
+            <canvas id="metricsChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Recent Readings -->
+    <div class="section-title">
+        <i class="fas fa-history"></i>
+        <h2>Recent Readings</h2>
+    </div>
+    
+    <div class="readings-grid" id="recentReadings">
+        <?php foreach($recent_readings as $reading): ?>
+        <div class="reading-card" onclick="highlightPond('<?php echo $reading['pond_name']; ?>')">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <strong><i class="fas fa-map-marker-alt"></i> Pond <?php echo $reading['pond_name']; ?></strong>
+                <span style="color: <?php 
+                    echo $reading['status'] == 'safe' ? '#4ade80' : 
+                        ($reading['status'] == 'warning' ? '#fbbf24' : '#ef4444'); 
+                ?>;">
+                    <i class="fas fa-<?php 
+                        echo $reading['status'] == 'safe' ? 'check-circle' : 
+                            ($reading['status'] == 'warning' ? 'exclamation-triangle' : 'exclamation-circle'); 
+                    ?>"></i> <?php echo ucfirst($reading['status']); ?>
+                </span>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin: 1rem 0;">
+                <div><small>Organic</small><br><strong style="color: #4ade80;"><?php echo $reading['organic_level']; ?></strong></div>
+                <div><small>Temp</small><br><strong style="color: #fbbf24;"><?php echo $reading['water_temperature']; ?>°C</strong></div>
+                <div><small>pH</small><br><strong style="color: #a78bfa;"><?php echo $reading['ph_level']; ?></strong></div>
+            </div>
+            <div style="font-size: 0.7rem; color: rgba(255,255,255,0.4);">
+                <i class="far fa-clock"></i> <?php echo date('h:i:s A', strtotime($reading['detected_at'])); ?>
+            </div>
+        </div>
+        <?php endforeach; ?>
+    </div>
+
+    <!-- Notifications -->
+    <div class="notifications-container">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <i class="fas fa-bell" style="color: #ef4444;"></i>
+                <h3>Notifications & Alerts</h3>
+            </div>
+            <button class="notify-btn" onclick="notifyAllAdmin()">
+                <i class="fas fa-bell"></i> Notify All
+            </button>
+        </div>
+        <div id="notificationsList">
+            <?php foreach($notifications as $notification): ?>
+            <div class="alert-item <?php echo $notification['type']; ?>" id="notification-<?php echo $notification['notification_id']; ?>">
+                <i class="fas fa-<?php 
+                    echo $notification['type'] == 'critical' ? 'exclamation-circle' : 
+                        ($notification['type'] == 'warning' ? 'exclamation-triangle' : 'info-circle'); 
+                ?>"></i>
+                <div style="flex: 1;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <strong>Pond <?php echo $notification['pond_name']; ?></strong>
+                        <?php if($notification['status'] == 'unread'): ?>
+                        <span style="background: #ef4444; padding: 0.2rem 0.5rem; border-radius: 50px; font-size: 0.7rem;">NEW</span>
+                        <?php endif; ?>
+                    </div>
+                    <p style="font-size: 0.9rem;"><?php echo $notification['message']; ?></p>
+                    <small style="color: rgba(255,255,255,0.4);"><?php echo date('h:i A', strtotime($notification['created_at'])); ?></small>
+                </div>
+                <button class="notify-btn small" onclick="notifyAdmin(<?php echo $notification['notification_id']; ?>)">
+                    Notify
+                </button>
+            </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+    
+    <!-- Footer -->
+    <div class="footer">
+        <i class="fas fa-map-marker-alt"></i> Manolo Fortich, Bukidnon • 
+        <span>PH Time: <span id="footerTimestamp"><?php echo date('h:i:s A'); ?></span></span>
+    </div>
+</div>
+
+<script>
+// ============================================
+// GLOBAL VARIABLES
+// ============================================
+let map, chart;
+let polygons = {};
+let simulationInterval;
+let isSimulationRunning = true;
+let clickMarkers = [];
+
+// PHP data to JavaScript
+const pondCoordinates = <?php echo json_encode($pond_coordinates); ?>;
+const pondsData = <?php echo json_encode($ponds_data); ?>;
+
+// Chart data from PHP
+const initialChartData = {
+    labels: <?php echo json_encode($chart_data['labels']); ?>,
+    organic: <?php echo json_encode($chart_data['organic']); ?>,
+    temperature: <?php echo json_encode($chart_data['temperature']); ?>,
+    ph: <?php echo json_encode($chart_data['ph']); ?>
+};
+
+// ============================================
+// INITIALIZATION
+// ============================================
+document.addEventListener('DOMContentLoaded', function() {
+    initMap();
+    initChart();
+    startTimeUpdates();
+    startSimulation();
+});
+
+// ============================================
+// MAP FUNCTIONS WITH CLICK ICON
+// ============================================
+function initMap() {
+    map = L.map('map').setView([8.3695, 124.8650], 15);
+    
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
+
+    // Add click event to map
+    map.on('click', function(e) {
+        addClickIcon(e.latlng);
+    });
+
+    // Add polygons for each pond
+    Object.keys(pondCoordinates).forEach(pondName => {
+        const pond = pondCoordinates[pondName];
+        const data = pondsData[pondName];
+        
+        let color = data.status === 'safe' ? '#4ade80' : 
+                   (data.status === 'warning' ? '#fbbf24' : '#ef4444');
+        
+        const polygon = L.polygon(pond.bounds, {
+            color: color,
+            weight: 3,
+            fillColor: color,
+            fillOpacity: 0.3
+        }).addTo(map);
+        
+        polygon.on('mouseover', function() { this.setStyle({ fillOpacity: 0.6 }); });
+        polygon.on('mouseout', function() { this.setStyle({ fillOpacity: 0.3 }); });
+        polygon.on('click', function(e) {
+            L.DomEvent.stopPropagation(e);
+            highlightPond(pondName);
+        });
+        
+        const marker = L.marker(pond.center, {
+            icon: L.divIcon({
+                html: `<div style="background: ${color}; width: 16px; height: 16px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 15px ${color};"></div>`,
+                iconSize: [16, 16]
+            })
+        }).addTo(map);
+        
+        const popupContent = `
+            <div style="min-width: 200px;">
+                <h4 style="margin-bottom: 10px;">Pond ${pondName}</h4>
+                <div><span style="color: ${color};">●</span> ${data.status.toUpperCase()}</div>
+                <div>👤 Staff: ${data.staff}</div>
+                <div>🌿 Organic: ${data.organic_level} mg/L</div>
+                <div>🌡️ Temp: ${data.temperature}°C</div>
+                <div>💧 pH: ${data.ph}</div>
+            </div>
+        `;
+        
+        polygon.bindPopup(popupContent);
+        marker.bindPopup(popupContent);
+        polygons[pondName] = polygon;
+    });
+}
+
+function addClickIcon(latlng) {
+    const clickIcon = L.divIcon({
+        html: `
+            <div style="
+                position: relative;
+                animation: dropIcon 0.3s ease;
+            ">
+                <div style="
+                    position: absolute;
+                    top: -15px;
+                    left: -15px;
+                    width: 30px;
+                    height: 30px;
+                    background: rgba(59, 130, 246, 0.3);
+                    border-radius: 50%;
+                    animation: pulseRing 2s infinite;
+                "></div>
+                <div style="
+                    background: #3b82f6;
+                    width: 24px;
+                    height: 24px;
+                    border-radius: 50%;
+                    border: 3px solid white;
+                    box-shadow: 0 0 20px #3b82f6;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: white;
+                    font-size: 12px;
+                    transform: translate(-12px, -12px);
+                ">
+                    <i class="fas fa-map-pin"></i>
+                </div>
+                <div style="
+                    position: absolute;
+                    top: -40px;
+                    left: -50px;
+                    background: #142138;
+                    color: white;
+                    padding: 4px 12px;
+                    border-radius: 20px;
+                    font-size: 11px;
+                    white-space: nowrap;
+                    border: 1px solid #3b82f6;
+                    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+                    pointer-events: none;
+                    opacity: 0;
+                    animation: fadeIn 0.3s ease forwards 0.2s;
+                ">
+                    <i class="fas fa-clock"></i> ${new Date().toLocaleTimeString()}
+                </div>
+            </div>
+        `,
+        className: 'click-marker',
+        iconSize: [24, 24],
+        iconAnchor: [0, 0]
+    });
+    
+    const clickMarker = L.marker(latlng, { 
+        icon: clickIcon,
+        zIndexOffset: 1000
+    }).addTo(map);
+    
+    clickMarkers.push(clickMarker);
+    
+    setTimeout(() => {
+        map.removeLayer(clickMarker);
+        clickMarkers = clickMarkers.filter(m => m !== clickMarker);
+    }, 3000);
+}
+
+function highlightPond(pondName) {
+    if (polygons[pondName]) {
+        map.setView(pondCoordinates[pondName].center, 18);
+        polygons[pondName].openPopup();
+    }
+}
+
+// ============================================
+// CHART FUNCTIONS
+// ============================================
+function initChart() {
+    const ctx = document.getElementById('metricsChart').getContext('2d');
+    
+    const gradientOrganic = ctx.createLinearGradient(0, 0, 0, 350);
+    gradientOrganic.addColorStop(0, 'rgba(239, 68, 68, 0.3)');
+    gradientOrganic.addColorStop(1, 'rgba(239, 68, 68, 0.0)');
+    
+    const gradientTemp = ctx.createLinearGradient(0, 0, 0, 350);
+    gradientTemp.addColorStop(0, 'rgba(251, 191, 36, 0.3)');
+    gradientTemp.addColorStop(1, 'rgba(251, 191, 36, 0.0)');
+    
+    const gradientPH = ctx.createLinearGradient(0, 0, 0, 350);
+    gradientPH.addColorStop(0, 'rgba(74, 222, 128, 0.3)');
+    gradientPH.addColorStop(1, 'rgba(74, 222, 128, 0.0)');
+    
+    chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: initialChartData.labels,
+            datasets: [
+                {
+                    label: 'Organic (mg/L)',
+                    data: initialChartData.organic,
+                    borderColor: '#ef4444',
+                    backgroundColor: gradientOrganic,
+                    borderWidth: 2,
+                    pointBackgroundColor: '#ef4444',
+                    pointBorderColor: '#fff',
+                    pointRadius: 3,
+                    pointHoverRadius: 6,
+                    tension: 0.3,
+                    fill: true
+                },
+                {
+                    label: 'Temperature (°C)',
+                    data: initialChartData.temperature,
+                    borderColor: '#fbbf24',
+                    backgroundColor: gradientTemp,
+                    borderWidth: 2,
+                    pointBackgroundColor: '#fbbf24',
+                    pointBorderColor: '#fff',
+                    pointRadius: 3,
+                    pointHoverRadius: 6,
+                    tension: 0.3,
+                    fill: true
+                },
+                {
+                    label: 'pH Level',
+                    data: initialChartData.ph,
+                    borderColor: '#4ade80',
+                    backgroundColor: gradientPH,
+                    borderWidth: 2,
+                    pointBackgroundColor: '#4ade80',
+                    pointBorderColor: '#fff',
+                    pointRadius: 3,
+                    pointHoverRadius: 6,
+                    tension: 0.3,
+                    fill: true
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { labels: { color: '#fff', font: { size: 11 } } },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                    backgroundColor: '#142138',
+                    titleColor: '#fff',
+                    bodyColor: 'rgba(255,255,255,0.8)',
+                    borderColor: '#3b82f6',
+                    borderWidth: 1
+                }
+            },
+            scales: {
+                x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#fff' } },
+                y: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#fff' } }
+            }
+        }
+    });
+}
+
+function updateChart(period, btn) {
+    document.querySelectorAll('.report-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    
+    fetch('', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: 'action=get_chart_data&period=' + period
+    })
+    .then(response => response.json())
+    .then(data => {
+        chart.data.labels = data.labels;
+        chart.data.datasets[0].data = data.organic;
+        chart.data.datasets[1].data = data.temperature;
+        chart.data.datasets[2].data = data.ph;
+        chart.update();
+        
+        btn.innerHTML = period.charAt(0).toUpperCase() + period.slice(1);
+        showNotification(`Chart updated to ${period} view`, 'success');
+    });
+}
+
+// ============================================
+// SIMULATION FUNCTIONS
+// ============================================
+function startSimulation() {
+    isSimulationRunning = true;
+    document.getElementById('simulationDot').className = 'live-dot running';
+    document.getElementById('simulationStatus').textContent = 'Simulation Running';
+    
+    simulationInterval = setInterval(() => {
+        simulateReadings();
+        simulateRandomNotification();
+    }, 5000);
+}
+
+function stopSimulation() {
+    isSimulationRunning = false;
+    document.getElementById('simulationDot').className = 'live-dot';
+    document.getElementById('simulationStatus').textContent = 'Simulation Paused';
+    clearInterval(simulationInterval);
+}
+
+function toggleSimulation() {
+    if (isSimulationRunning) {
+        stopSimulation();
+    } else {
+        startSimulation();
+    }
+}
+
+function simulateReadings() {
+    const ponds = ['A-1', 'B-2', 'C-1'];
+    
+    ponds.forEach(pond => {
+        const organic = Math.floor(Math.random() * 50) + 35; // 35-85
+        const temp = (Math.random() * 8 + 24).toFixed(1); // 24-32
+        const ph = (Math.random() * 2.5 + 6.0).toFixed(1); // 6.0-8.5
+        
+        let status = 'safe';
+        let statusColor = '#4ade80';
+        let icon = 'check-circle';
+        
+        if (organic > 75 || temp > 31 || ph > 8.2 || ph < 6.5) {
+            status = 'critical';
+            statusColor = '#ef4444';
+            icon = 'exclamation-circle';
+        } else if (organic > 60 || temp > 29 || ph > 7.8 || ph < 6.8) {
+            status = 'warning';
+            statusColor = '#fbbf24';
+            icon = 'exclamation-triangle';
+        }
+        
+        // Update pond card
+        const pondCard = document.getElementById(`pond-${pond}`);
+        if (pondCard) {
+            const statusElement = pondCard.querySelector('.pond-header span:last-child');
+            const indicator = pondCard.querySelector('.status-indicator');
+            const organicEl = document.getElementById(`organic-${pond}`);
+            const tempEl = document.getElementById(`temp-${pond}`);
+            const phEl = document.getElementById(`ph-${pond}`);
+            const timeEl = document.getElementById(`time-${pond}`);
+            
+            if (statusElement) {
+                statusElement.innerHTML = `<i class="fas fa-${icon}"></i> ${status.toUpperCase()}`;
+                statusElement.style.color = statusColor;
+            }
+            if (indicator) indicator.style.background = statusColor;
+            if (organicEl) organicEl.textContent = organic;
+            if (tempEl) tempEl.textContent = temp + '°';
+            if (phEl) phEl.textContent = ph;
+            if (timeEl) {
+                const now = new Date();
+                timeEl.textContent = now.toLocaleTimeString('en-US', { hour12: true });
+            }
+        }
+        
+        // Update map polygon
+        if (polygons[pond]) {
+            polygons[pond].setStyle({
+                color: statusColor,
+                fillColor: statusColor
+            });
+        }
+    });
+    
+    // Update recent readings
+    simulateRecentReadings();
+}
+
+function simulateRecentReadings() {
+    const readingCards = document.querySelectorAll('.reading-card');
+    const statuses = ['safe', 'warning', 'critical'];
+    const icons = {
+        safe: 'check-circle',
+        warning: 'exclamation-triangle',
+        critical: 'exclamation-circle'
+    };
+    const colors = {
+        safe: '#4ade80',
+        warning: '#fbbf24',
+        critical: '#ef4444'
+    };
+    
+    readingCards.forEach(card => {
+        const randomStatus = statuses[Math.floor(Math.random() * statuses.length)];
+        const organic = Math.floor(Math.random() * 50) + 35;
+        const temp = (Math.random() * 8 + 24).toFixed(1);
+        const ph = (Math.random() * 2.5 + 6.0).toFixed(1);
+        
+        const statusSpan = card.querySelector('span[style*="color"]');
+        const organicStrong = card.querySelectorAll('strong')[0];
+        const tempStrong = card.querySelectorAll('strong')[1];
+        const phStrong = card.querySelectorAll('strong')[2];
+        const timeDiv = card.querySelector('.reading-card > div:last-child');
+        
+        if (statusSpan) {
+            statusSpan.innerHTML = `<i class="fas fa-${icons[randomStatus]}"></i> ${randomStatus.toUpperCase()}`;
+            statusSpan.style.color = colors[randomStatus];
+        }
+        if (organicStrong) organicStrong.textContent = organic;
+        if (tempStrong) tempStrong.textContent = temp + '°C';
+        if (phStrong) phStrong.textContent = ph;
+        if (timeDiv) {
+            const now = new Date();
+            timeDiv.innerHTML = `<i class="far fa-clock"></i> ${now.toLocaleTimeString('en-US', { hour12: true })}`;
+        }
+    });
+}
+
+function simulateRandomNotification() {
+    const pondNames = ['A-1', 'B-2', 'C-1'];
+    const randomPond = pondNames[Math.floor(Math.random() * pondNames.length)];
+    const organic = Math.floor(Math.random() * 30) + 65;
+    const temp = (Math.random() * 5 + 28).toFixed(1);
+    
+    const types = ['critical', 'warning', 'info'];
+    const randomType = types[Math.floor(Math.random() * types.length)];
+    
+    let message = '';
+    let icon = '';
+    
+    if (randomType === 'critical') {
+        message = `HIGH ALERT: Pond ${randomPond} - Organic level ${organic}% Critical! Temperature ${temp}°C`;
+        icon = 'exclamation-circle';
+    } else if (randomType === 'warning') {
+        message = `WARNING: Pond ${randomPond} - Organic level ${organic}% approaching threshold`;
+        icon = 'exclamation-triangle';
+    } else {
+        message = `INFO: Pond ${randomPond} - Routine check recommended`;
+        icon = 'info-circle';
+    }
+    
+    const notificationDiv = document.createElement('div');
+    notificationDiv.className = `alert-item ${randomType}`;
+    notificationDiv.innerHTML = `
+        <i class="fas fa-${icon}"></i>
+        <div style="flex: 1;">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <strong>Pond ${randomPond}</strong>
+                <span style="background: #ef4444; padding: 0.2rem 0.5rem; border-radius: 50px; font-size: 0.7rem; color: white;">NEW</span>
+            </div>
+            <p style="font-size: 0.9rem;">${message}</p>
+            <small style="color: rgba(255,255,255,0.4);">Just now</small>
+        </div>
+        <button class="notify-btn small" onclick="notifyAdminSimulation(this, '${randomPond}')">
+            Notify
+        </button>
+    `;
+    
+    const notificationsList = document.getElementById('notificationsList');
+    notificationsList.insertBefore(notificationDiv, notificationsList.firstChild);
+    
+    if (notificationsList.children.length > 5) {
+        notificationsList.removeChild(notificationsList.lastChild);
+    }
+    
+    showNotification(message, randomType);
+}
+
+// ============================================
+// UTILITY FUNCTIONS
+// ============================================
+function notifyAdmin(id) {
+    const btn = event.currentTarget;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    btn.disabled = true;
+    
+    setTimeout(() => {
+        btn.innerHTML = '<i class="fas fa-check"></i> Notified';
+        btn.style.background = '#4ade80';
+        
+        setTimeout(() => {
+            btn.innerHTML = 'Notify';
+            btn.style.background = '';
+            btn.disabled = false;
+        }, 2000);
+    }, 1000);
+}
+
+function notifyAdminSimulation(btn, pondName) {
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    btn.disabled = true;
+    
+    setTimeout(() => {
+        btn.innerHTML = '<i class="fas fa-check"></i> Notified';
+        btn.style.background = '#4ade80';
+        
+        showNotification(`Admin notified for Pond ${pondName}`, 'success');
+        
+        setTimeout(() => {
+            btn.innerHTML = 'Notify';
+            btn.style.background = '';
+            btn.disabled = false;
+        }, 2000);
+    }, 1000);
+}
+
+function notifyAllAdmin() {
+    showNotification('All admins notified successfully', 'success');
+}
+
+function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        position: fixed; top: 80px; right: 20px; 
+        background: ${type === 'success' ? '#4ade80' : type === 'warning' ? '#fbbf24' : type === 'critical' ? '#ef4444' : '#3b82f6'};
+        color: ${type === 'success' ? '#142138' : 'white'};
+        padding: 1rem 1.5rem;
+        border-radius: 12px;
+        z-index: 9999;
+        animation: slideInRight 0.3s ease;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+        font-weight: 500;
+        max-width: 350px;
+    `;
+    
+    let icon = 'info-circle';
+    if (type === 'success') icon = 'check-circle';
+    if (type === 'warning') icon = 'exclamation-triangle';
+    if (type === 'critical') icon = 'exclamation-circle';
+    
+    notification.innerHTML = `
+        <i class="fas fa-${icon}"></i>
+        <div style="flex: 1;">${message}</div>
+        <small style="opacity: 0.7;">${new Date().toLocaleTimeString()}</small>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.style.animation = 'slideOutRight 0.3s ease';
+        setTimeout(() => notification.remove(), 300);
+    }, 4000);
+}
+
+function startTimeUpdates() {
+    setInterval(() => {
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString('en-US', { 
             timeZone: 'Asia/Manila',
             hour12: true,
             hour: '2-digit',
             minute: '2-digit',
             second: '2-digit'
-        };
-        
-        const phDateOptions = {
-            timeZone: 'Asia/Manila',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-        };
-        
-        const phDayOptions = {
-            timeZone: 'Asia/Manila',
-            weekday: 'long'
-        };
-
-        // Initialize map and markers
-        let map, markers = {}, chart;
-        let updateInterval;
-
-        // Custom marker icons with blinking animation
-        function createMarkerIcon(status) {
-            const colors = {
-                safe: '#4ade80',
-                warning: '#fbbf24',
-                critical: '#ef4444'
-            };
-            
-            return L.divIcon({
-                className: 'custom-marker',
-                html: `<div style="
-                    background: ${colors[status]};
-                    width: 20px;
-                    height: 20px;
-                    border-radius: 50%;
-                    border: 3px solid white;
-                    box-shadow: 0 0 20px ${colors[status]};
-                    animation: ${status === 'critical' ? 'blinkMarker 1s infinite' : 'none'};
-                "></div>`,
-                iconSize: [26, 26],
-                iconAnchor: [13, 13]
-            });
-        }
-
-        // Initialize dashboard
-        document.addEventListener('DOMContentLoaded', function() {
-            // Initialize map
-            map = L.map('map').setView([8.3695, 124.8698], 15);
-            
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-            }).addTo(map);
-
-            // Add markers for each pond
-            <?php 
-            $marker_positions = [
-                'A-1' => [8.3678, 124.8685],
-                'B-2' => [8.3712, 124.8712]
-            ];
-            
-            foreach($ponds_data as $pond_name => $data): 
-                $coords = $marker_positions[$pond_name] ?? [8.3695, 124.8698];
-            ?>
-                markers['<?php echo $pond_name; ?>'] = L.marker(
-                    [<?php echo $coords[0]; ?>, <?php echo $coords[1]; ?>],
-                    { 
-                        icon: createMarkerIcon('<?php echo $data['status']; ?>'),
-                        riseOnHover: true
-                    }
-                ).addTo(map)
-                .bindPopup(`
-                    <div style="color: #142138; padding: 12px; max-width: 250px;">
-                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 8px;">
-                            <i class="fas fa-map-marker-alt" style="color: <?php 
-                                echo $data['status'] == 'safe' ? '#4ade80' : 
-                                    ($data['status'] == 'warning' ? '#fbbf24' : '#ef4444'); 
-                            ?>; font-size: 1.2rem;"></i>
-                            <h3 style="margin: 0; font-size: 1.1rem;">Pond <?php echo $pond_name; ?></h3>
-                            <span style="background: <?php 
-                                echo $data['status'] == 'safe' ? '#4ade80' : 
-                                    ($data['status'] == 'warning' ? '#fbbf24' : '#ef4444'); 
-                            ?>20; color: <?php 
-                                echo $data['status'] == 'safe' ? '#4ade80' : 
-                                    ($data['status'] == 'warning' ? '#fbbf24' : '#ef4444'); 
-                            ?>; padding: 2px 8px; border-radius: 50px; font-size: 0.7rem;">
-                                <?php echo ucfirst($data['status']); ?>
-                            </span>
-                        </div>
-                        
-                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px;">
-                            <div style="text-align: center;">
-                                <i class="fas fa-seedling" style="color: #4ade80;"></i>
-                                <div style="font-weight: 600;"><?php echo $data['organic_level']; ?>%</div>
-                                <div style="font-size: 0.7rem; color: #666;">Organic</div>
-                            </div>
-                            <div style="text-align: center;">
-                                <i class="fas fa-thermometer-half" style="color: #fbbf24;"></i>
-                                <div style="font-weight: 600;"><?php echo $data['temperature']; ?>°C</div>
-                                <div style="font-size: 0.7rem; color: #666;">Temp</div>
-                            </div>
-                            <div style="text-align: center;">
-                                <i class="fas fa-flask" style="color: #a78bfa;"></i>
-                                <div style="font-weight: 600;"><?php echo $data['ph']; ?></div>
-                                <div style="font-size: 0.7rem; color: #666;">pH</div>
-                            </div>
-                        </div>
-                        
-                        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #eee;">
-                            <p style="margin: 3px 0;"><i class="fas fa-user"></i> <strong><?php echo $data['staff']; ?></strong></p>
-                            <p style="margin: 3px 0; font-size: 0.8rem; color: #666;">
-                                <i class="far fa-clock"></i> <?php echo date('h:i:s A', strtotime($data['last_reading'])); ?> PH Time
-                            </p>
-                        </div>
-                    </div>
-                `);
-            <?php endforeach; ?>
-
-            // Initialize chart
-            const ctx = document.getElementById('metricsChart').getContext('2d');
-            chart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: <?php echo json_encode($chart_data['labels']); ?>,
-                    datasets: [
-                        {
-                            label: 'Organic Level',
-                            data: <?php echo json_encode($chart_data['organic']); ?>,
-                            borderColor: '#ef4444',
-                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                            tension: 0.4,
-                            fill: true,
-                            borderWidth: 2
-                        },
-                        {
-                            label: 'Temperature',
-                            data: <?php echo json_encode($chart_data['temperature']); ?>,
-                            borderColor: '#fbbf24',
-                            backgroundColor: 'rgba(251, 191, 36, 0.1)',
-                            tension: 0.4,
-                            fill: true,
-                            borderWidth: 2
-                        },
-                        {
-                            label: 'pH Level',
-                            data: <?php echo json_encode($chart_data['ph']); ?>,
-                            borderColor: '#4ade80',
-                            backgroundColor: 'rgba(74, 222, 128, 0.1)',
-                            tension: 0.4,
-                            fill: true,
-                            borderWidth: 2
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    animation: {
-                        duration: 1000,
-                        easing: 'easeInOutQuart'
-                    },
-                    plugins: {
-                        legend: {
-                            labels: { color: '#ffffff', font: { size: 11 } }
-                        },
-                        tooltip: {
-                            mode: 'index',
-                            intersect: false,
-                            backgroundColor: '#1e2f47',
-                            titleColor: '#ffffff',
-                            bodyColor: 'rgba(255,255,255,0.8)',
-                            borderColor: 'rgba(255,255,255,0.1)',
-                            borderWidth: 1
-                        }
-                    },
-                    scales: {
-                        y: { 
-                            grid: { color: 'rgba(255,255,255,0.1)' }, 
-                            ticks: { color: '#ffffff' }
-                        },
-                        x: { 
-                            grid: { color: 'rgba(255,255,255,0.1)' }, 
-                            ticks: { color: '#ffffff' }
-                        }
-                    }
-                }
-            });
-
-            // Start simulation updates with PH time
-            startSimulationUpdates();
         });
+        document.getElementById('footerTimestamp').textContent = timeStr;
+    }, 1000);
+}
 
-        // Add animation styles
-        const style = document.createElement('style');
-        style.textContent = `
-            @keyframes blinkMarker {
-                0% { opacity: 1; transform: scale(1); }
-                50% { opacity: 0.5; transform: scale(1.2); }
-                100% { opacity: 1; transform: scale(1); }
-            }
-            
-            .leaflet-popup-content {
-                font-family: 'Inter', sans-serif;
-            }
-            
-            .leaflet-container {
-                font-family: 'Inter', sans-serif;
-            }
-        `;
-        document.head.appendChild(style);
+// Handle window resize
+window.addEventListener('resize', function() {
+    if (map) setTimeout(() => map.invalidateSize(), 100);
+    if (chart) chart.resize();
+});
 
-        // Start simulation updates with PH time
-        function startSimulationUpdates() {
-            // Update current time every second (PH time)
-            setInterval(() => {
-                const now = new Date();
-                const phTime = now.toLocaleTimeString('en-US', { 
-                    timeZone: 'Asia/Manila',
-                    hour12: true,
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit'
-                });
-                
-                const phDate = now.toLocaleDateString('en-US', {
-                    timeZone: 'Asia/Manila',
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                });
-                
-                const phDay = now.toLocaleDateString('en-US', {
-                    timeZone: 'Asia/Manila',
-                    weekday: 'long'
-                });
-                
-                document.getElementById('currentTime').textContent = phTime;
-                document.getElementById('mapTimestamp').textContent = phTime;
-                document.getElementById('footerTimestamp').textContent = phTime;
-            }, 1000);
+// Add animation styles
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes dropIcon {
+        0% { transform: translateY(-20px); opacity: 0; }
+        100% { transform: translateY(0); opacity: 1; }
+    }
+    @keyframes pulseRing {
+        0% { transform: scale(0.8); opacity: 1; }
+        50% { transform: scale(1.5); opacity: 0.5; }
+        100% { transform: scale(0.8); opacity: 1; }
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(5px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .click-marker { cursor: pointer; transition: all 0.3s ease; }
+    .click-marker:hover { transform: scale(1.2); z-index: 1001 !important; }
+`;
+document.head.appendChild(style);
+</script>
 
-            // Simulate random notification count updates
-            setInterval(() => {
-                const badge = document.getElementById('notificationBadge');
-                const randomCount = Math.floor(Math.random() * 3) + 1;
-                badge.textContent = randomCount;
-                badge.style.display = 'inline';
-                
-                // Randomly update chart timestamp
-                const now = new Date();
-                const phTime = now.toLocaleTimeString('en-US', { 
-                    timeZone: 'Asia/Manila',
-                    hour12: true,
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit'
-                });
-                document.getElementById('chartTimestamp').textContent = phTime;
-            }, 30000);
-        }
-
-        // Update chart simulation
-        function updateChartSimulation(period, btn) {
-            // Update active button
-            document.querySelectorAll('.report-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-
-            // Show loading state
-            const chartContainer = document.querySelector('.chart-container');
-            chartContainer.style.opacity = '0.5';
-
-            // Simulate API call
-            fetch('', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                body: 'action=get_chart_data&period=' + period
-            })
-            .then(response => response.json())
-            .then(data => {
-                setTimeout(() => {
-                    chart.data.labels = data.labels;
-                    chart.data.datasets[0].data = data.organic;
-                    chart.data.datasets[1].data = data.temperature;
-                    chart.data.datasets[2].data = data.ph;
-                    chart.update();
-                    
-                    chartContainer.style.opacity = '1';
-                    
-                    const now = new Date();
-                    const phTime = now.toLocaleTimeString('en-US', { 
-                        timeZone: 'Asia/Manila',
-                        hour12: true,
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        second: '2-digit'
-                    });
-                    document.getElementById('chartTimestamp').textContent = phTime;
-                    
-                    showSimulationFeedback(`Chart updated to ${period} view (PH Time)`);
-                }, 600);
-            });
-        }
-
-        // Highlight pond on map
-        function highlightPond(pondName) {
-            if (markers[pondName]) {
-                map.setView(markers[pondName].getLatLng(), 18);
-                markers[pondName].openPopup();
-                
-                // Highlight card animation
-                document.querySelectorAll('.pond-card').forEach(card => {
-                    if (card.querySelector('h3').innerText.includes(pondName)) {
-                        card.style.transform = 'scale(1.02)';
-                        card.style.borderColor = '#3b82f6';
-                        card.style.boxShadow = '0 0 30px rgba(59, 130, 246, 0.3)';
-                        
-                        setTimeout(() => {
-                            card.style.transform = '';
-                            card.style.borderColor = '';
-                            card.style.boxShadow = '';
-                        }, 2000);
-                    }
-                });
-                
-                showSimulationFeedback(`Pond ${pondName} highlighted on map`);
-            } else {
-                showSimulationFeedback(`Pond ${pondName} location not set`, 'warning');
-            }
-        }
-
-        // Highlight staff's assigned pond
-        function highlightStaffPond(pondName, staffName) {
-            if (pondName) {
-                highlightPond(pondName);
-                showSimulationFeedback(`Viewing ${staffName}'s pond (Pond ${pondName})`);
-            } else {
-                showSimulationFeedback(`${staffName} has no assigned pond`, 'warning');
-            }
-        }
-
-        // Notify admin simulation
-        function notifyAdminSimulation(notificationId) {
-            const btn = event.currentTarget;
-            const originalHtml = btn.innerHTML;
-            
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-            btn.disabled = true;
-
-            setTimeout(() => {
-                btn.innerHTML = '<i class="fas fa-check"></i> Notified';
-                btn.style.background = '#4ade80';
-                btn.style.color = '#142138';
-                
-                showNotification('Admin notified successfully', 'success');
-                
-                setTimeout(() => {
-                    btn.innerHTML = originalHtml;
-                    btn.style.background = '';
-                    btn.style.color = '';
-                    btn.disabled = false;
-                }, 2000);
-            }, 1000);
-        }
-
-        // Notify all admin simulation
-        function notifyAllAdminSimulation() {
-            const btns = document.querySelectorAll('.alert-item .notify-btn');
-            let count = 0;
-            
-            btns.forEach(btn => {
-                if (!btn.disabled) {
-                    btn.click();
-                    count++;
-                }
-            });
-            
-            if (count > 0) {
-                showNotification(`Notified admin about ${count} alert(s)`, 'success');
-            } else {
-                showNotification('No pending notifications to send', 'info');
-            }
-        }
-
-        // Mark notification as read simulation
-        function markNotificationReadSimulation(notificationId) {
-            const alertItem = event.currentTarget;
-            alertItem.style.opacity = '0.5';
-            
-            setTimeout(() => {
-                alertItem.remove();
-                showNotification('Notification marked as read', 'info');
-                
-                // Update badge count
-                const remaining = document.querySelectorAll('.alert-item').length;
-                if (remaining === 0) {
-                    document.querySelector('.alert-section').innerHTML = `
-                        <div style="text-align: center; padding: 2rem; color: rgba(255,255,255,0.5);">
-                            <i class="fas fa-check-circle" style="font-size: 3rem; color: #4ade80; margin-bottom: 1rem;"></i>
-                            <p>No notifications. All systems normal.</p>
-                        </div>
-                    `;
-                }
-            }, 500);
-        }
-
-        // Show notification toast
-        function showNotification(message, type = 'info') {
-            const notification = document.createElement('div');
-            notification.style.cssText = `
-                position: fixed;
-                top: 80px;
-                right: 20px;
-                background: ${type === 'success' ? '#4ade80' : (type === 'warning' ? '#fbbf24' : '#3b82f6')};
-                color: ${type === 'success' ? '#142138' : 'white'};
-                padding: 1rem 1.5rem;
-                border-radius: 12px;
-                z-index: 9999;
-                animation: slideInRight 0.3s ease;
-                box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-                display: flex;
-                align-items: center;
-                gap: 0.8rem;
-                font-weight: 500;
-            `;
-            notification.innerHTML = `<i class="fas fa-${type === 'success' ? 'check-circle' : 'info-circle'}"></i> ${message}`;
-            
-            document.body.appendChild(notification);
-            
-            setTimeout(() => {
-                notification.style.animation = 'slideOutRight 0.3s ease';
-                setTimeout(() => notification.remove(), 300);
-            }, 3000);
-        }
-
-        // Show simulation feedback
-        function showSimulationFeedback(message, type = 'info') {
-            const feedback = document.createElement('div');
-            feedback.style.cssText = `
-                position: fixed;
-                bottom: 20px;
-                left: 20px;
-                background: #1e2f47;
-                color: white;
-                padding: 0.8rem 1.2rem;
-                border-radius: 50px;
-                z-index: 9999;
-                animation: fadeInUp 0.3s ease;
-                font-size: 0.9rem;
-                border: 1px solid rgba(255,255,255,0.1);
-                display: flex;
-                align-items: center;
-                gap: 0.5rem;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            `;
-            feedback.innerHTML = `<i class="fas fa-sim-card" style="color: #3b82f6;"></i> ${message}`;
-            
-            document.body.appendChild(feedback);
-            
-            setTimeout(() => {
-                feedback.style.animation = 'fadeOutDown 0.3s ease';
-                setTimeout(() => feedback.remove(), 300);
-            }, 2000);
-        }
-
-        // Remove the simulateLogout function since we're using direct link to logout.php
-        // Or keep it but redirect to logout.php
-        function simulateLogout() {
-            if (confirm('Logout from Manager Dashboard?')) {
-                window.location.href = 'logout.php';
-            }
-        }
-
-        // Add animation keyframes
-        const animationStyles = document.createElement('style');
-        animationStyles.textContent = `
-            @keyframes slideInRight {
-                from {
-                    transform: translateX(100%);
-                    opacity: 0;
-                }
-                to {
-                    transform: translateX(0);
-                    opacity: 1;
-                }
-            }
-            
-            @keyframes slideOutRight {
-                from {
-                    transform: translateX(0);
-                    opacity: 1;
-                }
-                to {
-                    transform: translateX(100%);
-                    opacity: 0;
-                }
-            }
-            
-            @keyframes fadeInUp {
-                from {
-                    transform: translateY(100%);
-                    opacity: 0;
-                }
-                to {
-                    transform: translateY(0);
-                    opacity: 1;
-                }
-            }
-            
-            @keyframes fadeOutDown {
-                from {
-                    transform: translateY(0);
-                    opacity: 1;
-                }
-                to {
-                    transform: translateY(100%);
-                    opacity: 0;
-                }
-            }
-        `;
-        document.head.appendChild(animationStyles);
-    </script>
 </body>
 </html>
