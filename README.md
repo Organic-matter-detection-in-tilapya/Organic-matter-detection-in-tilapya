@@ -1,9 +1,7 @@
 # Organic Matter Detection in Tilapia
 ### Web-Based Simulation Monitoring System
 
-📅 **Last Updated:** March 2026
-📍 **Location:** Manolo Fortich, Bukidnon, Philippines
-🧪 **System Type:** Simulation-based · Academic 
+ Simulation-based · Academic 
 
 ---
 
