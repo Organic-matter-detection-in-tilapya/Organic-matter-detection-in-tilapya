@@ -66,7 +66,7 @@ foreach ($ponds_config as $key => $cfg) {
     $ph      = $latest ? floatval($latest['ph_level'])        : round(rand(65,85)/10,1);
     $status  = 'safe';
     if ($organic > 80 || $temp > 32 || $ph > 8.5) $status = 'critical';
-    elseif ($organic > 60 || $temp > 30 || $ph > 7.8) $status = 'warning';
+    elseif ($organic > 60 || $temp > 30 || $ph > 7.😎 $status = 'warning';
     $ponds_data[$key] = [
         'pond_id'=>$pid,'pond_name'=>$key,'name'=>$cfg['name'],
         'center'=>$cfg['center'],'bounds'=>$cfg['bounds'],
@@ -156,17 +156,13 @@ if (isset($_POST['action'])) {
             echo json_encode(['success'=>true,'message'=>"Admin notified for Pond $pond",'timestamp'=>date('h:i:s A')]); exit;
         case 'get_iot_reading':
             $key=$_POST['pond_key']??''; $o=rand(45,92); $t=round(rand(250,340)/10,1); $p=round(rand(63,90)/10,1);
-            $s='safe'; if($o>80||$t>32||$p>8.5) $s='critical'; elseif($o>60||$t>30||$p>7.8) $s='warning';
+            $s='safe'; if($o>80||$t>32||$p>8.5) $s='critical'; elseif($o>60||$t>30||$p>7.😎 $s='warning';
             echo json_encode(['success'=>true,'pond'=>$key,'organic'=>$o,'temp'=>$t,'ph'=>$p,'status'=>$s,'timestamp'=>date('h:i:s A')]); exit;
         case 'generate_report':
             $type=$_POST['type']??'daily'; $report=${$type.'_report'}??$daily_report;
             echo json_encode(['success'=>true,'report'=>$report,'type'=>$type]); exit;
         case 'logout':
             session_destroy(); echo json_encode(['success'=>true,'message'=>'Logged out']); exit;
-
-        // ── MANAGER → ADMIN NOTIFICATIONS ────────────────────────────────
-        // send_mgr_notif  → Manager sends a new notification to admin
-        // get_mgr_notifs  → Manager polls their own sent notifications + statuses
         case 'send_mgr_notif':
             $msg      = trim($_POST['message']   ?? '');
             $pond     = trim($_POST['pond_name'] ?? '');
@@ -184,7 +180,6 @@ if (isset($_POST['action'])) {
                 echo json_encode(['success'=>false,'message'=>'DB error: '.$e->getMessage()]);
             }
             exit;
-
         case 'get_mgr_notifs':
             try {
                 $rows = $pdo->prepare("SELECT id, message, pond_name, priority, status,
@@ -195,7 +190,6 @@ if (isset($_POST['action'])) {
                 $rows->execute([$manager_id]);
                 echo json_encode(['success'=>true,'notifications'=>$rows->fetchAll()]);
             } catch(Exception $e) {
-                // Table might not exist yet — return empty gracefully
                 echo json_encode(['success'=>true,'notifications'=>[]]);
             }
             exit;
@@ -219,7 +213,7 @@ if (isset($_POST['action'])) {
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 :root{--bg-deep:#060d17;--bg-panel:#0b1625;--bg-card:#0f1e30;--bg-elevated:#142235;--bg-hover:#1a2d45;--cyan:#00e5ff;--green:#39ff8a;--amber:#ffb800;--red:#ff3b5c;--violet:#b06cff;--teal:#00c9b1;--txt:#e8f4ff;--txt2:#8ba8c4;--muted:#4a6380;--bdr:rgba(0,229,255,.12);--bdr-glow:rgba(0,229,255,.35);--fd:'Syne',sans-serif;--fm:'Space Mono',monospace;--r-sm:8px;--r-md:14px;--r-lg:20px;--r-xl:28px;--nav-h:62px;--sidebar-w:260px;--bnav-h:60px;}
-*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+,::before,*::after{margin:0;padding:0;box-sizing:border-box}
 html{height:100%;scroll-behavior:smooth}
 body{background:var(--bg-deep);color:var(--txt);font-family:var(--fd);min-height:100vh;overflow-x:hidden;}
 body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background-image:linear-gradient(rgba(0,229,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,.025) 1px,transparent 1px);background-size:44px 44px;animation:gridDrift 28s linear infinite;}
@@ -235,9 +229,7 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
 @keyframes scanline{0%{top:-100%}100%{top:200%}}
 @keyframes rippleAnim{0%{transform:scale(0);opacity:1}100%{transform:scale(2.5);opacity:0}}
 ::-webkit-scrollbar{width:4px;height:4px}::-webkit-scrollbar-track{background:var(--bg-deep)}::-webkit-scrollbar-thumb{background:var(--teal);border-radius:2px}
-/* LAYOUT */
 .layout{display:flex;min-height:100vh;position:relative}
-/* SIDEBAR */
 .sidebar{width:var(--sidebar-w);flex-shrink:0;background:rgba(9,22,37,.97);backdrop-filter:blur(20px);border-right:1px solid var(--bdr);position:fixed;top:0;left:0;bottom:0;display:flex;flex-direction:column;z-index:700;transition:transform .3s cubic-bezier(.4,0,.2,1);overflow-y:auto;overflow-x:hidden;}
 .sidebar-head{padding:1.2rem 1.4rem 1rem;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:.7rem;min-height:var(--nav-h);}
 .sidebar-logo{width:36px;height:36px;border-radius:10px;flex-shrink:0;background:linear-gradient(135deg,var(--teal),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:1rem;color:#000;font-weight:800;position:relative;overflow:hidden;}
@@ -258,45 +250,21 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
 .sidebar-urole{font-size:.65rem;color:var(--muted);font-family:var(--fm)}
 .btn-logout-sidebar{width:100%;display:flex;align-items:center;justify-content:center;gap:.5rem;padding:.6rem;border-radius:var(--r-md);background:rgba(255,59,92,.1);border:1px solid rgba(255,59,92,.3);color:var(--red);font-family:var(--fd);font-size:.82rem;font-weight:600;cursor:pointer;transition:.25s;text-decoration:none}
 .btn-logout-sidebar:hover{background:rgba(255,59,92,.2)}
-/* MAIN */
 .main{margin-left:var(--sidebar-w);flex:1;min-width:0;position:relative}
-/* TOPNAV (mobile) */
 .topnav{display:none;background:rgba(6,13,23,.97);backdrop-filter:blur(20px);border-bottom:1px solid var(--bdr);height:var(--nav-h);padding:0 1rem;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:200;}
 .topnav-brand{display:flex;align-items:center;gap:.6rem}
 .topnav-logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--teal),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:.95rem;color:#000;font-weight:800;position:relative;overflow:hidden}
 .topnav-logo::after{content:'';position:absolute;top:-50%;left:-60%;width:28%;height:200%;background:rgba(255,255,255,.35);transform:skewX(-20deg);animation:sheen 4s infinite}
 .topnav-title{font-size:.88rem;font-weight:800;background:linear-gradient(90deg,var(--teal),var(--txt));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-
-/* ══════════════════════════════════════════════
-   TOPNAV RIGHT — logout visible sa mobile dito
-══════════════════════════════════════════════ */
 .topnav-right{display:flex;align-items:center;gap:.5rem}
 .topnav-clock{font-family:var(--fm);font-size:.68rem;color:var(--teal);background:rgba(0,201,177,.07);border:1px solid rgba(0,201,177,.2);padding:.26rem .6rem;border-radius:6px;letter-spacing:.6px;white-space:nowrap}
 .hamburger{width:38px;height:38px;border-radius:9px;border:1px solid var(--bdr);background:var(--bg-elevated);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--txt2);font-size:.9rem;-webkit-tap-highlight-color:transparent;position:relative;min-height:44px;min-width:44px}
 .notif-dot-top{position:absolute;top:4px;right:4px;width:8px;height:8px;border-radius:50%;background:var(--red);border:2px solid var(--bg-deep);animation:blink 1.5s infinite}
-
-/* Logout button sa topnav — visible sa mobile */
-.topnav-logout{
-    display:flex;align-items:center;justify-content:center;
-    width:38px;height:38px;min-width:44px;min-height:44px;
-    border-radius:9px;
-    background:rgba(255,59,92,.1);
-    border:1px solid rgba(255,59,92,.3);
-    color:var(--red);
-    font-size:.88rem;
-    cursor:pointer;
-    text-decoration:none;
-    -webkit-tap-highlight-color:transparent;
-    touch-action:manipulation;
-    transition:.22s;
-}
+.topnav-logout{display:flex;align-items:center;justify-content:center;width:38px;height:38px;min-width:44px;min-height:44px;border-radius:9px;background:rgba(255,59,92,.1);border:1px solid rgba(255,59,92,.3);color:var(--red);font-size:.88rem;cursor:pointer;text-decoration:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation;transition:.22s;}
 .topnav-logout:hover{background:rgba(255,59,92,.22)}
 .topnav-logout:active{transform:scale(.95);background:rgba(255,59,92,.3)}
-
-/* SIDEBAR OVERLAY */
 .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:600;backdrop-filter:blur(4px);opacity:0;transition:opacity .3s;pointer-events:none;}
 .sidebar-overlay.active{opacity:1;pointer-events:all}
-/* BOTTOM NAV */
 .bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:9999;background:rgba(9,22,37,.98);backdrop-filter:blur(20px);border-top:1px solid var(--bdr);grid-template-columns:repeat(5,1fr);gap:0;padding-bottom:env(safe-area-inset-bottom,0px);pointer-events:all;}
 .bnav-item{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.22rem;padding:.55rem .2rem;cursor:pointer;font-size:.58rem;font-weight:700;color:var(--muted);letter-spacing:.3px;text-transform:uppercase;transition:color .2s,background .2s;position:relative;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none;min-height:52px;overflow:visible;}
 .bnav-item:active{background:rgba(0,201,177,.08);color:var(--teal);}
@@ -305,16 +273,11 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
 .bnav-item i{font-size:1.1rem;line-height:1;pointer-events:none}
 .bnav-item span{pointer-events:none;line-height:1}
 .bnav-badge{position:absolute;top:5px;right:calc(50% - 16px);background:var(--red);color:#fff;border-radius:50px;padding:.05rem .35rem;font-family:var(--fm);font-size:.55rem;min-width:16px;text-align:center;pointer-events:none;}
-
-/* Bottom nav logout tab — red accent */
 .bnav-item.bnav-logout{color:rgba(255,59,92,.6)}
 .bnav-item.bnav-logout:active,.bnav-item.bnav-logout:hover{color:var(--red);background:rgba(255,59,92,.08)}
-
-/* CONTENT */
 .content{padding:1.4rem 1.6rem 2rem;max-width:1600px;width:100%;}
 .section-panel{display:none;animation:fadeUp .35s ease both}
 .section-panel.active{display:block}
-/* TOPBAR */
 .topbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.7rem;padding:.7rem 1.3rem;background:var(--bg-card);border:1px solid var(--bdr);border-radius:var(--r-lg);margin-bottom:1.3rem}
 .topbar-left{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap}
 .topbar-day{font-size:1rem;font-weight:700}.topbar-date{font-family:var(--fm);font-size:.73rem;color:var(--txt2)}
@@ -326,7 +289,6 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
 .nav-clock{font-family:var(--fm);font-size:.76rem;color:var(--teal);background:rgba(0,201,177,.07);border:1px solid rgba(0,201,177,.2);padding:.3rem .7rem;border-radius:6px;letter-spacing:.8px;white-space:nowrap}
 .iot-live{display:inline-flex;align-items:center;gap:.35rem;font-family:var(--fm);font-size:.65rem;color:var(--green)}
 .iot-live span{width:6px;height:6px;border-radius:50%;background:var(--green);animation:blink 1.2s infinite;display:inline-block}
-/* KPI */
 .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.3rem}
 .kpi{background:var(--bg-card);border:1px solid var(--bdr);border-radius:var(--r-lg);padding:1.2rem 1.3rem;position:relative;overflow:hidden;cursor:default;transition:.35s}
 .kpi:hover{transform:translateY(-3px);border-color:var(--bdr-glow);box-shadow:0 0 28px rgba(0,229,255,.12)}
@@ -335,14 +297,12 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
 .kpi-val{font-family:var(--fm);font-size:1.8rem;font-weight:700;color:var(--kc,var(--teal));line-height:1;margin-bottom:.2rem}
 .kpi-label{font-size:.68rem;color:var(--muted);letter-spacing:.5px;text-transform:uppercase}
 .kpi-corner{position:absolute;top:.8rem;right:.8rem;font-size:.58rem;font-family:var(--fm);color:var(--kc);opacity:.45;letter-spacing:.4px}
-/* CARDS */
 .card{background:var(--bg-card);border:1px solid var(--bdr);border-radius:var(--r-xl);padding:1.3rem 1.4rem;margin-bottom:1.2rem}
 .card:hover{border-color:rgba(0,201,177,.2)}
 .card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem}
 .card-title{display:flex;align-items:center;gap:.55rem;font-size:.86rem;font-weight:700;letter-spacing:.4px;text-transform:uppercase}
 .card-title i{color:var(--teal)}
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;margin-bottom:1.2rem}
-/* BADGES */
 .badge{display:inline-flex;align-items:center;gap:.28rem;padding:.22rem .65rem;border-radius:4px;font-size:.67rem;font-weight:700;font-family:var(--fm);letter-spacing:.3px;text-transform:uppercase;white-space:nowrap}
 .badge-active{background:rgba(57,255,138,.12);color:var(--green);border:1px solid rgba(57,255,138,.25)}
 .badge-inactive{background:rgba(255,59,92,.12);color:var(--red);border:1px solid rgba(255,59,92,.25)}
@@ -356,7 +316,6 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
 .badge-resolved{background:rgba(57,255,138,.1);color:var(--green);border:1px solid rgba(57,255,138,.2)}
 .badge-info{background:rgba(0,229,255,.1);color:var(--cyan);border:1px solid var(--bdr)}
 .dot-blink{width:5px;height:5px;border-radius:50%;background:currentColor;animation:blink 1.5s infinite;display:inline-block}
-/* BUTTONS */
 .btn{display:inline-flex;align-items:center;gap:.4rem;border:none;border-radius:var(--r-sm);padding:.45rem 1rem;font-family:var(--fd);font-size:.8rem;font-weight:600;cursor:pointer;transition:.22s;letter-spacing:.3px;white-space:nowrap;-webkit-tap-highlight-color:transparent;touch-action:manipulation;user-select:none}
 .btn:active{transform:scale(.97)}
 .btn:disabled{opacity:.4;cursor:not-allowed;pointer-events:none}
@@ -367,7 +326,6 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
 .btn-ghost{background:var(--bg-elevated);color:var(--txt2);border:1px solid var(--bdr)}
 .btn-ghost:hover{border-color:var(--teal);color:var(--teal)}
 .btn-sm{padding:.28rem .65rem;font-size:.72rem}
-/* STAFF GRID */
 .staff-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.2rem}
 .staff-card{background:var(--bg-card);border:1px solid var(--bdr);border-radius:var(--r-xl);padding:1.2rem 1.1rem;cursor:pointer;transition:.3s;position:relative;overflow:hidden;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 .staff-card:hover{transform:translateY(-4px);border-color:var(--teal)}
@@ -379,7 +337,6 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
 .staff-email{font-size:.7rem;color:var(--muted);font-family:var(--fm);margin-bottom:.55rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .staff-pond-tag{display:inline-flex;align-items:center;gap:.3rem;background:rgba(0,201,177,.1);border:1px solid rgba(0,201,177,.22);color:var(--teal);padding:.22rem .65rem;border-radius:4px;font-family:var(--fm);font-size:.68rem;margin-bottom:.6rem}
 .staff-foot{display:flex;align-items:center;justify-content:space-between;font-size:.73rem;flex-wrap:wrap;gap:.3rem}
-/* POND CARDS */
 .pond-cards-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.2rem}
 .pond-card{background:var(--bg-card);border:1px solid var(--bdr);border-radius:var(--r-xl);padding:1.1rem;cursor:pointer;position:relative;overflow:hidden;transition:.3s;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 .pond-card:hover{transform:translateY(-3px);border-color:var(--bdr-glow)}
@@ -401,7 +358,6 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
 .pond-bar{height:4px;background:rgba(255,255,255,.07);border-radius:2px;overflow:hidden}
 .pond-bar-fill{height:100%;border-radius:2px;transition:width 1s ease}
 .pond-ts{font-family:var(--fm);font-size:.62rem;color:var(--muted);display:flex;align-items:center;gap:.35rem;margin-top:.4rem;flex-wrap:wrap}
-/* MAP */
 #map{height:420px;border-radius:var(--r-lg);overflow:hidden;border:1px solid var(--bdr);position:relative}
 .map-scan{position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,rgba(0,201,177,.5),transparent);pointer-events:none;z-index:500;animation:scanline 6s linear infinite}
 .map-legend{display:flex;gap:.7rem;align-items:center;font-family:var(--fm);font-size:.68rem;flex-wrap:wrap}
@@ -411,13 +367,11 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
 .leaflet-popup-content-wrapper{background:var(--bg-panel)!important;border:1px solid var(--bdr)!important;border-radius:var(--r-md)!important;box-shadow:0 8px 32px rgba(0,0,0,.5)!important;color:var(--txt)!important}
 .leaflet-popup-tip{background:var(--bg-panel)!important}
 .leaflet-control-zoom a{background:var(--bg-panel)!important;color:var(--txt)!important;border-color:var(--bdr)!important}
-.leaflet-control-attribution{background:rgba(6,13,23,.8)!important;color:var(--muted)!important;font-size:.55rem!important}
-/* CHART */
+.leaflet-control-attribution{background:rgba(6,13,23,.😎!important;color:var(--muted)!important;font-size:.55rem!important}
 .chart-wrap{height:240px;margin-top:.8rem}
 .period-tabs{display:flex;gap:.4rem;flex-wrap:wrap}
 .period-btn{font-family:var(--fm);font-size:.66rem;padding:.26rem .65rem;border-radius:4px;background:var(--bg-elevated);border:1px solid var(--bdr);color:var(--muted);cursor:pointer;transition:.2s;letter-spacing:.3px;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 .period-btn.active,.period-btn:hover{background:rgba(0,201,177,.1);border-color:var(--teal);color:var(--teal)}
-/* ALERTS */
 .alert-item{display:flex;gap:.75rem;padding:.8rem;border-radius:var(--r-md);margin-bottom:.45rem;border-left:3px solid transparent;background:rgba(0,0,0,.2);cursor:pointer;transition:.22s;animation:slideIn .3s ease both;-webkit-tap-highlight-color:transparent}
 .alert-item:hover{background:var(--bg-elevated)}
 .alert-item.critical{border-left-color:var(--red)}
@@ -429,7 +383,6 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
 .alert-msg{font-size:.77rem;color:var(--txt2);margin:.12rem 0}
 .alert-foot{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.3rem}
 .alert-time{font-family:var(--fm);font-size:.62rem;color:var(--muted)}
-/* REPORT */
 .rpt-type-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.7rem;margin-bottom:1rem}
 .rpt-type-btn{background:var(--bg-elevated);border:1px solid var(--bdr);border-radius:var(--r-md);padding:.9rem .6rem;text-align:center;cursor:pointer;transition:.3s;color:var(--txt);-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 .rpt-type-btn:hover,.rpt-type-btn.active{border-color:var(--teal);background:rgba(0,201,177,.07)}
@@ -454,16 +407,13 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
 .metric-mini-val{font-family:var(--fm);font-size:.82rem;font-weight:700}
 .metric-mini-lbl{font-size:.58rem;color:var(--muted)}
 .rpt-dl-row{display:flex;gap:.5rem;padding-top:.8rem;border-top:1px solid var(--bdr);flex-wrap:wrap}
-/* ACTIVITIES */
 .act-item{display:flex;align-items:center;gap:.7rem;padding:.6rem .4rem;border-bottom:1px solid rgba(255,255,255,.04);font-size:.8rem}
 .act-item:last-child{border-bottom:none}
 .act-icon{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:.72rem;flex-shrink:0}
 .act-icon.login{background:rgba(0,201,177,.12);color:var(--teal)}.act-icon.reading{background:rgba(255,184,0,.12);color:var(--amber)}.act-icon.alert{background:rgba(255,59,92,.12);color:var(--red)}.act-icon.system{background:rgba(57,255,138,.12);color:var(--green)}
 .act-text{flex:1;color:var(--txt2)}.act-time{font-family:var(--fm);font-size:.63rem;color:var(--muted);white-space:nowrap}
-/* NOTIFY CARD */
 .notify-card{background:rgba(255,59,92,.06);border:1px solid rgba(255,59,92,.2);border-radius:var(--r-xl);padding:1.2rem;margin-bottom:1.2rem}
 .notify-card-title{font-size:.82rem;font-weight:700;color:var(--red);display:flex;align-items:center;gap:.5rem;margin-bottom:.6rem}
-/* ── MANAGER → ADMIN NOTIFICATION PANEL ── */
 .mgr-notif-form{background:var(--bg-elevated);border:1px solid var(--bdr);border-radius:var(--r-lg);padding:1.1rem;margin-bottom:1rem}
 .mgr-notif-form textarea{width:100%;background:var(--bg-card);border:1px solid var(--bdr);color:var(--txt);border-radius:var(--r-sm);padding:.6rem .85rem;font-family:var(--fd);font-size:.84rem;resize:vertical;min-height:80px;outline:none;transition:.25s;-webkit-appearance:none}
 .mgr-notif-form textarea:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(0,201,177,.1)}
@@ -474,24 +424,20 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
 .mgr-notif-select option{background:var(--bg-panel)}
 .mgr-notif-list{display:flex;flex-direction:column;gap:.5rem}
 .mgr-notif-item{background:var(--bg-elevated);border:1px solid var(--bdr);border-radius:var(--r-md);padding:.85rem 1rem;border-left:3px solid var(--muted);transition:.2s;animation:slideIn .3s ease both}
-.mgr-notif-item.status-Pending  {border-left-color:var(--amber)}
-.mgr-notif-item.status-Received {border-left-color:var(--cyan)}
+.mgr-notif-item.status-Pending{border-left-color:var(--amber)}
+.mgr-notif-item.status-Received{border-left-color:var(--cyan)}
 .mgr-notif-item.status-Completed{border-left-color:var(--green);opacity:.75}
 .mgr-notif-head{display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem;flex-wrap:wrap;margin-bottom:.3rem}
 .mgr-notif-msg{font-size:.82rem;color:var(--txt2);margin:.2rem 0}
 .mgr-notif-meta{font-family:var(--fm);font-size:.61rem;color:var(--muted);display:flex;gap:.7rem;flex-wrap:wrap;margin-top:.3rem}
 .mgr-notif-note{font-size:.76rem;color:var(--teal);margin-top:.3rem;font-style:italic;display:flex;align-items:center;gap:.35rem}
 .status-pill{display:inline-flex;align-items:center;gap:.28rem;padding:.18rem .6rem;border-radius:50px;font-family:var(--fm);font-size:.6rem;font-weight:700;letter-spacing:.3px;white-space:nowrap}
-.status-pill.Pending  {background:rgba(255,184,0,.12);color:var(--amber);border:1px solid rgba(255,184,0,.25)}
-.status-pill.Received {background:rgba(0,229,255,.1); color:var(--cyan); border:1px solid rgba(0,229,255,.2)}
+.status-pill.Pending{background:rgba(255,184,0,.12);color:var(--amber);border:1px solid rgba(255,184,0,.25)}
+.status-pill.Received{background:rgba(0,229,255,.1);color:var(--cyan);border:1px solid rgba(0,229,255,.2)}
 .status-pill.Completed{background:rgba(57,255,138,.1);color:var(--green);border:1px solid rgba(57,255,138,.2)}
 .priority-pip{display:inline-block;width:7px;height:7px;border-radius:50%;flex-shrink:0;vertical-align:middle}
-.pri-low     {background:var(--muted)}
-.pri-normal  {background:var(--cyan)}
-.pri-high    {background:var(--amber)}
-.pri-critical{background:var(--red);animation:blink 1.5s infinite}
+.pri-low{background:var(--muted)}.pri-normal{background:var(--cyan)}.pri-high{background:var(--amber)}.pri-critical{background:var(--red);animation:blink 1.5s infinite}
 @media(max-width:768px){.mgr-notif-row{flex-direction:column;align-items:stretch}.mgr-notif-select{width:100%}}
-/* MODAL */
 .modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);backdrop-filter:blur(8px);z-index:10000;align-items:center;justify-content:center;padding:1rem}
 .modal.open{display:flex}
 .modal-box{background:var(--bg-panel);border:1px solid var(--bdr);border-radius:var(--r-xl);padding:1.8rem;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;animation:fadeUp .3s ease;-webkit-overflow-scrolling:touch}
@@ -514,18 +460,14 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
 .confirm-msg{font-size:.81rem;color:var(--txt2);text-align:center;line-height:1.5;margin-bottom:1.2rem}
 .confirm-btns{display:flex;gap:.6rem}
 .confirm-btns .btn{flex:1;justify-content:center;min-height:44px}
-/* TOAST */
 .toast-wrap{position:fixed;top:74px;right:18px;z-index:10001;display:flex;flex-direction:column;gap:.45rem;pointer-events:none;max-width:calc(100vw - 2rem)}
 .toast{display:flex;align-items:center;gap:.55rem;padding:.7rem 1rem;border-radius:var(--r-md);font-size:.8rem;font-weight:600;min-width:240px;animation:toastIn .3s ease;box-shadow:0 8px 24px rgba(0,0,0,.4);pointer-events:all}
 .toast.success{background:rgba(57,255,138,.13);border:1px solid rgba(57,255,138,.3);color:var(--green)}
 .toast.warning{background:rgba(255,184,0,.13);border:1px solid rgba(255,184,0,.3);color:var(--amber)}
 .toast.critical{background:rgba(255,59,92,.13);border:1px solid rgba(255,59,92,.3);color:var(--red)}
 .toast.info{background:rgba(0,201,177,.1);border:1px solid rgba(0,201,177,.2);color:var(--teal)}
-/* FOOTER */
 .dash-footer{padding:.75rem 1.4rem;background:var(--bg-card);border:1px solid var(--bdr);border-radius:var(--r-lg);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;font-family:var(--fm);font-size:.67rem;color:var(--muted);margin-top:.5rem}
-/* ═══ TABLET ≤1100px ═══ */
 @media(max-width:1100px){:root{--sidebar-w:220px}.kpi-grid{grid-template-columns:repeat(2,1fr)}.grid-2{grid-template-columns:1fr}.staff-grid{grid-template-columns:1fr 1fr}.pond-cards-grid{grid-template-columns:1fr 1fr}.rpt-type-grid{grid-template-columns:1fr 1fr}.rpt-stats{grid-template-columns:1fr 1fr}.metrics-mini{grid-template-columns:1fr 1fr}}
-/* ═══ MOBILE ≤768px ═══ */
 @media(max-width:768px){
     :root{--nav-h:58px}
     .sidebar{transform:translateX(-100%);z-index:700}
@@ -552,15 +494,10 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
     .toast{min-width:unset;width:100%}
     .dash-footer{flex-direction:column;text-align:center}
 }
-/* ═══ SMALL ≤480px ═══ */
 @media(max-width:480px){.kpi-grid{grid-template-columns:1fr 1fr;gap:.5rem}.kpi{padding:.8rem .85rem}.kpi-val{font-size:1.35rem}.kpi-icon{width:32px;height:32px;font-size:.82rem;margin-bottom:.5rem}.rpt-type-grid{grid-template-columns:1fr 1fr}.rpt-stats{grid-template-columns:1fr}#map{height:260px}.bnav-item{font-size:.52rem}.bnav-item i{font-size:1rem}}
-/* ═══ TOUCH ═══ */
 @media(hover:none) and (pointer:coarse){.btn{min-height:44px}.bnav-item{min-height:52px}.nav-item{min-height:44px}}
-/* ═══ REDUCED MOTION ═══ */
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}.blink-dot,.dot-blink,.nav-badge{animation:none!important}body::before{animation:none!important}.map-scan{display:none}}
-/* ═══ PRINT ═══ */
 @media print{.sidebar,.topnav,.bottom-nav,.toast-wrap,.modal{display:none!important}.main{margin-left:0!important}.content{padding:.5rem!important}body{background:#fff!important;color:#000!important}.card{background:#fff!important;border:1px solid #ccc!important;break-inside:avoid}.section-panel{display:block!important}}
-/* ═══ LARGE ≥1400px ═══ */
 @media(min-width:1400px){:root{--sidebar-w:280px}.content{padding:1.6rem 2rem 2rem}.staff-grid{grid-template-columns:repeat(3,1fr)}.pond-cards-grid{grid-template-columns:repeat(3,1fr)}}
 </style>
 </head>
@@ -608,15 +545,9 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
     </div>
 </aside>
 
-<!-- LAYOUT -->
 <div class="layout">
 <div class="main">
 
-<!-- ══════════════════════════════════════════
-     TOPNAV (mobile) — MAY LOGOUT BUTTON DITO
-     Hindi na kailangan buksan ang sidebar
-     para ma-access ang logout sa phone
-═══════════════════════════════════════════ -->
 <nav class="topnav">
     <div class="topnav-brand">
         <div class="topnav-logo"><i class="fas fa-fish"></i></div>
@@ -624,17 +555,9 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
     </div>
     <div class="topnav-right">
         <div class="topnav-clock" id="topnavClock"><?php echo $current_time_12hr; ?></div>
-
-        <!-- LOGOUT BUTTON — visible palagi sa topnav ng mobile -->
-        <a href="../auth/logout.php"
-           class="topnav-logout"
-           onclick="return confirm('Logout?')"
-           aria-label="Logout"
-           title="Logout">
+        <a href="../auth/logout.php" class="topnav-logout" onclick="return confirm('Logout?')" aria-label="Logout" title="Logout">
             <i class="fas fa-sign-out-alt"></i>
         </a>
-
-        <!-- Hamburger para sa sidebar -->
         <button class="hamburger" onclick="toggleSidebar()" aria-label="Menu">
             <i class="fas fa-bars"></i>
             <?php if($new_alerts_count > 0): ?><div class="notif-dot-top"></div><?php endif; ?>
@@ -642,7 +565,6 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
     </div>
 </nav>
 
-<!-- CONTENT -->
 <div class="content">
 
 <!-- TOPBAR -->
@@ -870,10 +792,8 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
     </div>
 </div>
 
-<!-- ════ SECTION: NOTIFY ADMIN ════ -->
+<!-- NOTIFY ADMIN -->
 <div class="section-panel" id="sec-mgr-notifs">
-
-    <!-- Send new notification form -->
     <div class="card">
         <div class="card-head">
             <div class="card-title"><i class="fas fa-paper-plane"></i> Send Notification to Admin</div>
@@ -881,7 +801,7 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
         </div>
         <div class="mgr-notif-form">
             <label style="font-size:.68rem;font-weight:700;color:var(--muted);font-family:var(--fm);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:.4rem">Message *</label>
-            <textarea id="mgrNotifMsg" placeholder="Describe the issue or request for the admin… (e.g. High organic matter in Pond B-2, needs inspection)"></textarea>
+            <textarea id="mgrNotifMsg" placeholder="Describe the issue or request for the admin…"></textarea>
             <div class="mgr-notif-row">
                 <select class="mgr-notif-select" id="mgrNotifPond">
                     <option value="">— No specific pond —</option>
@@ -900,8 +820,6 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
                 </button>
             </div>
         </div>
-
-        <!-- Sent notifications list -->
         <div class="card-head" style="margin-bottom:.6rem">
             <div class="card-title" style="font-size:.78rem"><i class="fas fa-list"></i> My Sent Notifications</div>
             <button class="btn btn-ghost btn-sm" onclick="loadMgrNotifs()"><i class="fas fa-sync-alt" id="mgrNotifsRefreshIcon"></i> Refresh</button>
@@ -923,10 +841,7 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
 </div><!-- /main -->
 </div><!-- /layout -->
 
-<!-- ══════════════════════════════════════════════
-     BOTTOM NAV — 5 tabs, OUTSIDE layout
-     Tab 5: Logout (accessible agad sa phone)
-═══════════════════════════════════════════════ -->
+<!-- BOTTOM NAV -->
 <nav class="bottom-nav" id="bottomNav">
     <div class="bnav-item active" id="bn-overview" onclick="showSection('overview')">
         <i class="fas fa-chart-pie"></i><span>Overview</span>
@@ -942,11 +857,7 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
         <i class="fas fa-bell"></i><span>Alerts</span>
         <?php if($new_alerts_count > 0): ?><span class="bnav-badge"><?php echo $new_alerts_count; ?></span><?php endif; ?>
     </div>
-    <!-- LOGOUT TAB — palaging visible sa mobile -->
-    <a href="../auth/logout.php"
-       class="bnav-item bnav-logout"
-       onclick="return confirm('Logout?')"
-       style="text-decoration:none">
+    <a href="../auth/logout.php" class="bnav-item bnav-logout" onclick="return confirm('Logout?')" style="text-decoration:none">
         <i class="fas fa-sign-out-alt"></i>
         <span>Logout</span>
     </a>
@@ -997,10 +908,50 @@ function showSection(name){
 function gotoMap(pondKey){showSection('map');setTimeout(()=>focusPond(pondKey),400);}
 
 function getColor(s){return s==='safe'?'#39ff8a':(s==='warning'?'#ffb800':'#ff3b5c');}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  initMap() — Enhanced with bounding box focus + zoom-out restriction
+//
+//  Changes from original (non-invasive additions only):
+//    • POND_BOUNDS computed from actual polygon vertices + 0.0003° margin
+//    • maxBounds + maxBoundsViscosity:1.0 → hard pan clamp from creation
+//    • fitBounds(POND_BOUNDS) replaces featureGroup().getBounds().pad(.25)
+//    • setTimeout → reads fitted zoom, sets it as minZoom (zoom-out floor)
+//    • All original polygon/popup/label/hover/click logic is unchanged
+// ─────────────────────────────────────────────────────────────────────────────
 function initMap(){
-    const mapEl=document.getElementById('map');if(!mapEl||mapEl.clientHeight<5){setTimeout(initMap,400);return;}if(map)return;
-    map=L.map('map',{zoomControl:true}).setView([8.3694,124.8652],17);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; OpenStreetMap &copy; CARTO',subdomains:'abcd',maxZoom:20}).addTo(map);
+    const mapEl=document.getElementById('map');
+    if(!mapEl||mapEl.clientHeight<5){setTimeout(initMap,400);return;}
+    if(map)return;
+
+    // Bounding box: exact envelope of all three pond polygons + small margin
+    // A-1: lat [8.3692‥8.3700] lng [124.8640‥124.8650]
+    // B-2: lat [8.3685‥8.3693] lng [124.8647‥124.8656]
+    // C-1: lat [8.3697‥8.3705] lng [124.8655‥124.8665]
+    // Combined SW [8.3685,124.8640] NE [8.3705,124.8665] + 0.0003° margin
+    var POND_BOUNDS=L.latLngBounds(
+        [8.3682, 124.8637],   // SW corner (with margin)
+        [8.3708, 124.8668]    // NE corner (with margin)
+    );
+
+    // Map options: add maxBounds + viscosity for hard pan clamp.
+    // zoomControl:true is preserved (original behaviour).
+    map=L.map('map',{
+        zoomControl:         true,
+        maxBounds:           POND_BOUNDS,
+        maxBoundsViscosity:  1.0,   // hard clamp — no rubber-band drift
+        minZoom:             17,    // conservative floor; tightened dynamically below
+        maxZoom:             21     // allow zooming in close
+    });
+
+    // Tile layer — identical to original
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
+        attribution:'&copy; OpenStreetMap &copy; CARTO',
+        subdomains:'abcd',
+        maxZoom:20
+    }).addTo(map);
+
+    // Polygons, popups, labels — identical to original
     Object.keys(POND_COORDS).forEach(key=>{
         const cfg=POND_COORDS[key],pond=PONDS[key];if(!cfg||!pond)return;
         const color=getColor(pond.status);
@@ -1013,27 +964,56 @@ function initMap(){
         const lIcon=L.divIcon({className:'',html:`<div style="background:rgba(6,13,23,.88);border:1.5px solid ${color};color:${color};font-family:'Space Mono',monospace;font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;white-space:nowrap;box-shadow:0 0 12px ${color}44;">${cfg.name}</div>`,iconAnchor:[0,0]});
         L.marker(cfg.center,{icon:lIcon,interactive:false}).addTo(map);
     });
-    const fg=L.featureGroup(Object.values(polygons));if(fg.getBounds().isValid())map.fitBounds(fg.getBounds().pad(.25));
+
+    // Fit to bounding box so all three ponds are visible from the start
+    map.fitBounds(POND_BOUNDS,{padding:[16,16]});
+
+    // Lock minZoom to whatever zoom level fitBounds() settled on —
+    // this prevents the user zooming out past the initial bounding-box view.
+    setTimeout(function(){
+        var fitted=map.getZoom();
+        map.setMinZoom(fitted);
+        map.setMaxBounds(POND_BOUNDS); // reaffirm after any resize jitter
+    },100);
+
     map.invalidateSize();
 }
-function buildPopup(key,pond,cfg,color){return `<div style="font-family:'Syne',sans-serif;color:#e8f4ff;min-width:200px;"><div style="display:flex;align-items:center;gap:7px;margin-bottom:9px;padding-bottom:7px;border-bottom:1px solid rgba(255,255,255,.1)"><span style="background:${color}22;color:${color};border:1px solid ${color}44;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700">${pond.status.toUpperCase()}</span><strong>${cfg.name}</strong></div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:9px"><div style="text-align:center;background:rgba(0,0,0,.3);padding:5px;border-radius:5px"><div style="color:#39ff8a;font-weight:700;font-size:.85rem">${pond.organic_level}%</div><div style="font-size:.58rem;color:#8ba8c4">Organic</div></div><div style="text-align:center;background:rgba(0,0,0,.3);padding:5px;border-radius:5px"><div style="color:#ffb800;font-weight:700;font-size:.85rem">${pond.temperature}°C</div><div style="font-size:.58rem;color:#8ba8c4">Temp</div></div><div style="text-align:center;background:rgba(0,0,0,.3);padding:5px;border-radius:5px"><div style="color:#b06cff;font-weight:700;font-size:.85rem">${pond.ph}</div><div style="font-size:.58rem;color:#8ba8c4">pH</div></div></div><div style="font-size:.73rem;color:#8ba8c4">👤 ${pond.staff}<br>📍 ${pond.location}</div></div>`;}
-function focusPond(key){if(!key||!map)return;const cfg=POND_COORDS[key];if(!cfg)return;if(polygons[key]){map.setView(cfg.center,19);polygons[key].openPopup();polygons[key].setStyle({fillOpacity:.65});setTimeout(()=>{if(polygons[key])polygons[key].setStyle({fillOpacity:PONDS[key]?.status==='critical'?0.35:0.25});},1200);}toast(`Focused: ${cfg.name}`,'info');}
 
-function startSimulation(){setInterval(()=>{Object.keys(PONDS).forEach(key=>{const p=PONDS[key];const o=parseFloat(Math.max(10,Math.min(100,p.organic_level+(Math.random()-.5)*5)).toFixed(1));const t=parseFloat(Math.max(20,Math.min(38,p.temperature+(Math.random()-.5)*.9)).toFixed(1));const ph=parseFloat(Math.max(5,Math.min(10,p.ph+(Math.random()-.5)*.12)).toFixed(1));const s=(o>80||t>32||ph>8.5)?'critical':((o>60||t>30||ph>7.8)?'warning':'safe');PONDS[key].organic_level=o;PONDS[key].temperature=t;PONDS[key].ph=ph;PONDS[key].status=s;const ts=new Date().toLocaleTimeString('en-US',{timeZone:'Asia/Manila',hour12:true});updatePondDisplay(key,o,t,ph,s,ts);});},5000);}
-function updatePondDisplay(key,o,t,p,status,ts){[['ov-o-',o+'%'],['ov-t-',t+'°C'],['ov-p-',p]].forEach(([pref,val])=>{const e=document.getElementById(pref+key);if(e)e.textContent=val;});const pbO=document.getElementById('pb-o-'+key);if(pbO)pbO.textContent=o+'%';const fO=document.getElementById('pf-o-'+key);if(fO){fO.style.width=Math.min(100,o)+'%';fO.style.background=o>80?'var(--red)':(o>60?'var(--amber)':'var(--green)');}const tsEl=document.getElementById('ov-ts-'+key);if(tsEl)tsEl.textContent=ts;['pcard-'+key,'pcard2-'+key].forEach(id=>{const el=document.getElementById(id);if(el)el.className='pond-card '+status;});if(polygons[key]){const c=getColor(status);polygons[key].setStyle({color:c,fillColor:c,dashArray:status==='critical'?'8,4':null});}if(status==='critical')toast(`⚠ CRITICAL: Pond ${key} — Organic ${o}%`,'critical');}
-function refreshPond(key){fetchPost('get_iot_reading',`pond_key=${key}`).then(d=>{if(!d.success)return;updatePondDisplay(key,d.organic,d.temp,d.ph,d.status,d.timestamp);toast(`Pond ${key}: refreshed`,'success');});}
+function buildPopup(key,pond,cfg,color){return <div style="font-family:'Syne',sans-serif;color:#e8f4ff;min-width:200px;"><div style="display:flex;align-items:center;gap:7px;margin-bottom:9px;padding-bottom:7px;border-bottom:1px solid rgba(255,255,255,.1)"><span style="background:${color}22;color:${color};border:1px solid ${color}44;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700">${pond.status.toUpperCase()}</span><strong>${cfg.name}</strong></div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:9px"><div style="text-align:center;background:rgba(0,0,0,.3);padding:5px;border-radius:5px"><div style="color:#39ff8a;font-weight:700;font-size:.85rem">${pond.organic_level}%</div><div style="font-size:.58rem;color:#8ba8c4">Organic</div></div><div style="text-align:center;background:rgba(0,0,0,.3);padding:5px;border-radius:5px"><div style="color:#ffb800;font-weight:700;font-size:.85rem">${pond.temperature}°C</div><div style="font-size:.58rem;color:#8ba8c4">Temp</div></div><div style="text-align:center;background:rgba(0,0,0,.3);padding:5px;border-radius:5px"><div style="color:#b06cff;font-weight:700;font-size:.85rem">${pond.ph}</div><div style="font-size:.58rem;color:#8ba8c4">pH</div></div></div><div style="font-size:.73rem;color:#8ba8c4">👤 ${pond.staff}<br>📍 ${pond.location}</div></div>;}
+
+function focusPond(key){if(!key||!map)return;const cfg=POND_COORDS[key];if(!cfg)return;if(polygons[key]){map.setView(cfg.center,19);polygons[key].openPopup();polygons[key].setStyle({fillOpacity:.65});setTimeout(()=>{if(polygons[key])polygons[key].setStyle({fillOpacity:PONDS[key]?.status==='critical'?0.35:0.25});},1200);}toast(Focused: ${cfg.name},'info');}
+
+function startSimulation(){setInterval(()=>{Object.keys(PONDS).forEach(key=>{const p=PONDS[key];const o=parseFloat(Math.max(10,Math.min(100,p.organic_level+(Math.random()-.5)*5)).toFixed(1));const t=parseFloat(Math.max(20,Math.min(38,p.temperature+(Math.random()-.5)*.9)).toFixed(1));const ph=parseFloat(Math.max(5,Math.min(10,p.ph+(Math.random()-.5)*.12)).toFixed(1));const s=(o>80||t>32||ph>8.5)?'critical':((o>60||t>30||ph>7.😎?'warning':'safe');PONDS[key].organic_level=o;PONDS[key].temperature=t;PONDS[key].ph=ph;PONDS[key].status=s;const ts=new Date().toLocaleTimeString('en-US',{timeZone:'Asia/Manila',hour12:true});updatePondDisplay(key,o,t,ph,s,ts);});},5000);}
+function updatePondDisplay(key,o,t,p,status,ts){[['ov-o-',o+'%'],['ov-t-',t+'°C'],['ov-p-',p]].forEach(([pref,val])=>{const e=document.getElementById(pref+key);if(e)e.textContent=val;});const pbO=document.getElementById('pb-o-'+key);if(pbO)pbO.textContent=o+'%';const fO=document.getElementById('pf-o-'+key);if(fO){fO.style.width=Math.min(100,o)+'%';fO.style.background=o>80?'var(--red)':(o>60?'var(--amber)':'var(--green)');}const tsEl=document.getElementById('ov-ts-'+key);if(tsEl)tsEl.textContent=ts;['pcard-'+key,'pcard2-'+key].forEach(id=>{const el=document.getElementById(id);if(el)el.className='pond-card '+status;});if(polygons[key]){const c=getColor(status);polygons[key].setStyle({color:c,fillColor:c,dashArray:status==='critical'?'8,4':null});}if(status==='critical')toast(⚠ CRITICAL: Pond ${key} — Organic ${o}%,'critical');}
+function refreshPond(key){fetchPost('get_iot_reading',`pond_key=${key}`).then(d=>{if(!d.success)return;updatePondDisplay(key,d.organic,d.temp,d.ph,d.status,d.timestamp);toast(Pond ${key}: refreshed,'success');});}
 function refreshAllPonds(){const icon=document.getElementById('refreshAllIcon');if(icon)icon.style.animation='spin 1s linear infinite';Object.keys(PONDS).forEach(key=>refreshPond(key));setTimeout(()=>{const icon=document.getElementById('refreshAllIcon');if(icon)icon.style.animation='';},1200);toast('All ponds refreshed','success');}
 
 function initChart(){const ctx=document.getElementById('metricsChart');if(!ctx)return;metricsChart=new Chart(ctx.getContext('2d'),{type:'line',data:{labels:CHART_DATA.daily.labels,datasets:[{label:'Organic %',data:CHART_DATA.daily.organic,borderColor:'#ff3b5c',backgroundColor:'rgba(255,59,92,.07)',fill:true,tension:.4,borderWidth:2,pointRadius:0,pointHoverRadius:5},{label:'Temp °C',data:CHART_DATA.daily.temperature,borderColor:'#ffb800',backgroundColor:'rgba(255,184,0,.07)',fill:true,tension:.4,borderWidth:2,pointRadius:0,pointHoverRadius:5},{label:'pH',data:CHART_DATA.daily.ph,borderColor:'#39ff8a',backgroundColor:'rgba(57,255,138,.07)',fill:true,tension:.4,borderWidth:2,pointRadius:0,pointHoverRadius:5}]},options:{responsive:true,maintainAspectRatio:false,animation:{duration:800},interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(11,22,37,.95)',borderColor:'rgba(0,201,177,.2)',borderWidth:1,titleColor:'#e8f4ff',bodyColor:'#8ba8c4',padding:10}},scales:{x:{grid:{color:'rgba(255,255,255,.04)',drawBorder:false},ticks:{color:'#4a6380',font:{family:"'Space Mono'",size:9},maxTicksLimit:8}},y:{grid:{color:'rgba(255,255,255,.04)',drawBorder:false},ticks:{color:'#4a6380',font:{family:"'Space Mono'",size:9}}}}}});}
-function switchPeriod(period,btn){document.querySelectorAll('.period-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');const orig=btn.textContent;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i>';fetchPost('get_chart_data',`period=${period}`).then(d=>{metricsChart.data.labels=d.labels;metricsChart.data.datasets[0].data=d.organic;metricsChart.data.datasets[1].data=d.temperature;metricsChart.data.datasets[2].data=d.ph;metricsChart.update();btn.textContent=orig;toast(`Chart: ${period}`,'info');});}
+function switchPeriod(period,btn){document.querySelectorAll('.period-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');const orig=btn.textContent;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i>';fetchPost('get_chart_data',`period=${period}`).then(d=>{metricsChart.data.labels=d.labels;metricsChart.data.datasets[0].data=d.organic;metricsChart.data.datasets[1].data=d.temperature;metricsChart.data.datasets[2].data=d.ph;metricsChart.update();btn.textContent=orig;toast(Chart: ${period},'info');});}
 
 function ackAlert(id){fetchPost('acknowledge_alert',`alert_id=${id}`).then(d=>{toast(d.message,'success');setTimeout(()=>location.reload(),600);});}
-function notifyAdmin(pondName){fetchPost('notify_admin',`pond=${pondName}&message=Manager escalated: Alert for Pond ${pondName}`).then(d=>{toast(d.message,'success');});}
-function notifyAllAdmin(){Object.keys(PONDS).forEach(key=>notifyAdmin(key));toast('Admin notified for all active alerts','success');}
+
+function notifyAdmin(pondName){
+    const msg=`Manager escalated: Attention required for Pond ${pondName}. Please review current readings.`;
+    fetchPost('send_mgr_notif',`message=${encodeURIComponent(msg)}&pond_name=${encodeURIComponent(pondName)}&priority=high`)
+    .then(d=>{
+        toast(d.success?`Admin notified for Pond ${pondName}`:(d.message||'Failed'),d.success?'success':'critical');
+        if(d.success&&document.getElementById('sec-mgr-notifs')?.classList.contains('active'))loadMgrNotifs();
+    })
+    .catch(()=>toast('Network error','critical'));
+}
+
+function notifyAllAdmin(){
+    const urgentPonds=Object.keys(PONDS).filter(k=>PONDS[k].status==='critical'||PONDS[k].status==='warning');
+    if(!urgentPonds.length){toast('No warning or critical ponds to escalate','info');return;}
+    let delay=0;
+    urgentPonds.forEach(key=>{setTimeout(()=>notifyAdmin(key),delay);delay+=150;});
+    toast(Notifying admin for ${urgentPonds.length} pond(s)…,'warning');
+}
 
 function showPondModal(key){const pond=PONDS[key],cfg=POND_COORDS[key];if(!pond||!cfg)return;const color=getColor(pond.status),mc=pond.organic_level>80?'meter-critical':(pond.organic_level>60?'meter-warning':'meter-safe');document.getElementById('pondModalTitle').innerHTML=`<i class="fas fa-map-marker-alt" style="color:${color}"></i> ${cfg.name}`;document.getElementById('pondModalBody').innerHTML=`<div style="text-align:center;margin-bottom:.9rem"><span class="badge badge-${pond.status}" style="font-size:.8rem;padding:.4rem 1rem"><span class="dot-blink"></span> ${pond.status.toUpperCase()}</span></div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.7rem;margin-bottom:1rem"><div style="text-align:center;padding:.85rem .4rem;background:var(--bg-elevated);border-radius:var(--r-md);border:1px solid var(--bdr)"><i class="fas fa-seedling ic-organic" style="font-size:1.3rem;display:block;margin-bottom:.3rem"></i><div class="metric-val ic-organic" style="font-size:1.3rem">${pond.organic_level}%</div><div class="metric-lbl">Organic</div><div class="meter" style="margin-top:.4rem"><div class="meter-fill ${mc}" style="width:${pond.organic_level}%"></div></div></div><div style="text-align:center;padding:.85rem .4rem;background:var(--bg-elevated);border-radius:var(--r-md);border:1px solid var(--bdr)"><i class="fas fa-thermometer-half ic-temp" style="font-size:1.3rem;display:block;margin-bottom:.3rem"></i><div class="metric-val ic-temp" style="font-size:1.3rem">${pond.temperature}°C</div><div class="metric-lbl">Temp</div><div class="meter" style="margin-top:.4rem"><div class="meter-fill meter-warning" style="width:${Math.min(100,(pond.temperature-20)*10)}%"></div></div></div><div style="text-align:center;padding:.85rem .4rem;background:var(--bg-elevated);border-radius:var(--r-md);border:1px solid var(--bdr)"><i class="fas fa-flask ic-ph" style="font-size:1.3rem;display:block;margin-bottom:.3rem"></i><div class="metric-val ic-ph" style="font-size:1.3rem">${pond.ph}</div><div class="metric-lbl">pH</div><div class="meter" style="margin-top:.4rem"><div class="meter-fill meter-safe" style="width:${Math.min(100,pond.ph*10)}%"></div></div></div></div><div class="pond-detail-grid"><div class="detail-row"><div class="detail-lbl">Assigned Staff</div><div class="detail-val"><i class="fas fa-user" style="color:var(--teal)"></i> ${pond.staff}</div></div><div class="detail-row"><div class="detail-lbl">Location</div><div class="detail-val"><i class="fas fa-map-pin" style="color:var(--red)"></i> ${pond.location}</div></div><div class="detail-row"><div class="detail-lbl">Coordinates</div><div class="detail-val" style="font-family:var(--fm);font-size:.75rem">${cfg.center[0].toFixed(4)}, ${cfg.center[1].toFixed(4)}</div></div><div class="detail-row"><div class="detail-lbl">Last Reading</div><div class="detail-val" style="font-family:var(--fm);font-size:.75rem">${new Date().toLocaleTimeString('en-US',{hour12:true,timeZone:'Asia/Manila'})}</div></div></div><div style="display:flex;gap:.5rem;margin-top:1rem;flex-wrap:wrap"><button class="btn btn-primary btn-sm" style="flex:1" onclick="closeModal('pondModal');gotoMap('${key}')"><i class="fas fa-map-marker-alt"></i> Map</button><button class="btn btn-warning btn-sm" style="flex:1" onclick="notifyAdmin('${key}');closeModal('pondModal')"><i class="fas fa-bell"></i> Notify Admin</button><button class="btn btn-ghost btn-sm" style="flex:1" onclick="refreshPond('${key}');closeModal('pondModal')"><i class="fas fa-sync-alt"></i> Refresh</button></div>`;openModal('pondModal');}
 
-function genReport(type,btn){document.querySelectorAll('.rpt-type-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');fetchPost('generate_report',`type=${type}`).then(d=>{if(!d.success)return;const r=d.report,labels={daily:'Daily Report',weekly:'Weekly Report',monthly:'Monthly Report'},dates={daily:'<?php echo date('M d, Y'); ?>',weekly:r.week||'',monthly:r.month||''};document.getElementById('rptPreview').innerHTML=`<div class="rpt-header"><div class="rpt-title"><i class="fas fa-chart-bar" style="color:var(--teal)"></i> ${labels[type]}</div><div class="rpt-date-badge">${dates[type]}</div></div>${type==='daily'?`<div class="rpt-stats"><div class="rpt-stat"><div class="rpt-stat-val">${r.total_ponds}</div><div class="rpt-stat-lbl">Ponds</div></div><div class="rpt-stat"><div class="rpt-stat-val" style="color:var(--red)">${r.alerts_generated}</div><div class="rpt-stat-lbl">Alerts</div></div><div class="rpt-stat"><div class="rpt-stat-val" style="color:var(--green)">${r.staff_active}</div><div class="rpt-stat-lbl">Active Staff</div></div></div><div class="rpt-status-row"><div class="rpt-status-item"><div class="rpt-status-val" style="color:var(--green)">${r.safe_ponds}</div><div class="rpt-status-lbl" style="color:var(--green)">Safe</div></div><div class="rpt-status-item"><div class="rpt-status-val" style="color:var(--amber)">${r.warning_ponds}</div><div class="rpt-status-lbl" style="color:var(--amber)">Warning</div></div><div class="rpt-status-item"><div class="rpt-status-val" style="color:var(--red)">${r.critical_ponds}</div><div class="rpt-status-lbl" style="color:var(--red)">Critical</div></div></div>`:`<div class="rpt-stats"><div class="rpt-stat"><div class="rpt-stat-val">${r.total_readings}</div><div class="rpt-stat-lbl">Readings</div></div><div class="rpt-stat"><div class="rpt-stat-val" style="color:var(--amber)">${r.incidents}</div><div class="rpt-stat-lbl">Incidents</div></div><div class="rpt-stat"><div class="rpt-stat-val" style="color:var(--green)">${r.resolved}</div><div class="rpt-stat-lbl">Resolved</div></div></div>`}<div class="metrics-mini"><div class="metric-mini"><i class="fas fa-seedling ic-organic"></i><div><div class="metric-mini-val">${r.avg_organic}%</div><div class="metric-mini-lbl">Avg Organic</div></div></div><div class="metric-mini"><i class="fas fa-thermometer-half ic-temp"></i><div><div class="metric-mini-val">${r.avg_temp}°C</div><div class="metric-mini-lbl">Avg Temp</div></div></div><div class="metric-mini"><i class="fas fa-flask ic-ph"></i><div><div class="metric-mini-val">${r.avg_ph}</div><div class="metric-mini-lbl">Avg pH</div></div></div></div><div class="rpt-dl-row"><button class="btn btn-sm" style="flex:1;background:rgba(255,59,92,.12);color:var(--red);border:1px solid rgba(255,59,92,.25)" onclick="toast('PDF downloaded','success')"><i class="fas fa-file-pdf"></i> PDF</button><button class="btn btn-sm" style="flex:1;background:rgba(57,255,138,.12);color:var(--green);border:1px solid rgba(57,255,138,.25)" onclick="toast('Excel downloaded','success')"><i class="fas fa-file-excel"></i> Excel</button><button class="btn btn-sm" style="flex:1;background:rgba(255,184,0,.12);color:var(--amber);border:1px solid rgba(255,184,0,.25)" onclick="toast('CSV downloaded','success')"><i class="fas fa-file-csv"></i> CSV</button></div>`;toast(`${labels[type]} generated`,'success');});}
+function genReport(type,btn){document.querySelectorAll('.rpt-type-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');fetchPost('generate_report',`type=${type}`).then(d=>{if(!d.success)return;const r=d.report,labels={daily:'Daily Report',weekly:'Weekly Report',monthly:'Monthly Report'},dates={daily:'<?php echo date('M d, Y'); ?>',weekly:r.week||'',monthly:r.month||''};document.getElementById('rptPreview').innerHTML=`<div class="rpt-header"><div class="rpt-title"><i class="fas fa-chart-bar" style="color:var(--teal)"></i> ${labels[type]}</div><div class="rpt-date-badge">${dates[type]}</div></div>${type==='daily'?`<div class="rpt-stats"><div class="rpt-stat"><div class="rpt-stat-val">${r.total_ponds}</div><div class="rpt-stat-lbl">Ponds</div></div><div class="rpt-stat"><div class="rpt-stat-val" style="color:var(--red)">${r.alerts_generated}</div><div class="rpt-stat-lbl">Alerts</div></div><div class="rpt-stat"><div class="rpt-stat-val" style="color:var(--green)">${r.staff_active}</div><div class="rpt-stat-lbl">Active Staff</div></div></div><div class="rpt-status-row"><div class="rpt-status-item"><div class="rpt-status-val" style="color:var(--green)">${r.safe_ponds}</div><div class="rpt-status-lbl" style="color:var(--green)">Safe</div></div><div class="rpt-status-item"><div class="rpt-status-val" style="color:var(--amber)">${r.warning_ponds}</div><div class="rpt-status-lbl" style="color:var(--amber)">Warning</div></div><div class="rpt-status-item"><div class="rpt-status-val" style="color:var(--red)">${r.critical_ponds}</div><div class="rpt-status-lbl" style="color:var(--red)">Critical</div></div></div>`:`<div class="rpt-stats"><div class="rpt-stat"><div class="rpt-stat-val">${r.total_readings}</div><div class="rpt-stat-lbl">Readings</div></div><div class="rpt-stat"><div class="rpt-stat-val" style="color:var(--amber)">${r.incidents}</div><div class="rpt-stat-lbl">Incidents</div></div><div class="rpt-stat"><div class="rpt-stat-val" style="color:var(--green)">${r.resolved}</div><div class="rpt-stat-lbl">Resolved</div></div></div>`}<div class="metrics-mini"><div class="metric-mini"><i class="fas fa-seedling ic-organic"></i><div><div class="metric-mini-val">${r.avg_organic}%</div><div class="metric-mini-lbl">Avg Organic</div></div></div><div class="metric-mini"><i class="fas fa-thermometer-half ic-temp"></i><div><div class="metric-mini-val">${r.avg_temp}°C</div><div class="metric-mini-lbl">Avg Temp</div></div></div><div class="metric-mini"><i class="fas fa-flask ic-ph"></i><div><div class="metric-mini-val">${r.avg_ph}</div><div class="metric-mini-lbl">Avg pH</div></div></div></div><div class="rpt-dl-row"><button class="btn btn-sm" style="flex:1;background:rgba(255,59,92,.12);color:var(--red);border:1px solid rgba(255,59,92,.25)" onclick="toast('PDF downloaded','success')"><i class="fas fa-file-pdf"></i> PDF</button><button class="btn btn-sm" style="flex:1;background:rgba(57,255,138,.12);color:var(--green);border:1px solid rgba(57,255,138,.25)" onclick="toast('Excel downloaded','success')"><i class="fas fa-file-excel"></i> Excel</button><button class="btn btn-sm" style="flex:1;background:rgba(255,184,0,.12);color:var(--amber);border:1px solid rgba(255,184,0,.25)" onclick="toast('CSV downloaded','success')"><i class="fas fa-file-csv"></i> CSV</button></div>`;toast(${labels[type]} generated,'success');});}
 
 function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
@@ -1043,127 +1023,83 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelect
 function toast(msg,type='info'){const c=document.getElementById('toastWrap'),t=document.createElement('div');t.className=`toast ${type}`;const icons={success:'check-circle',warning:'exclamation-triangle',critical:'times-circle',info:'info-circle'};t.innerHTML=`<i class="fas fa-${icons[type]||'info-circle'}"></i> ${msg}`;c.appendChild(t);setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(50px)';t.style.transition='.3s';setTimeout(()=>t.remove(),300);},3500);}
 function fetchPost(action,body=''){return fetch('',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:`action=${action}${body?'&'+body:''}`}).then(r=>r.json());}
 
-// ═══════════════════════════════════════════════
-// MANAGER → ADMIN NOTIFICATION SYSTEM
-// ═══════════════════════════════════════════════
+const MGR_PRIORITY_COLORS={low:'pri-low',normal:'pri-normal',high:'pri-high',critical:'pri-critical'};
+const MGR_PRIORITY_LABELS={low:'Low',normal:'Normal',high:'High',critical:'CRITICAL'};
 
-// Priority labels and dot colors for display
-const MGR_PRIORITY_COLORS = {low:'pri-low',normal:'pri-normal',high:'pri-high',critical:'pri-critical'};
-const MGR_PRIORITY_LABELS = {low:'Low',normal:'Normal',high:'High',critical:'CRITICAL'};
-
-// ── sendMgrNotif() ─────────────────────────────
-// Validates form, POSTs send_mgr_notif, then reloads the sent list.
-function sendMgrNotif() {
-    const msg      = document.getElementById('mgrNotifMsg').value.trim();
-    const pond     = document.getElementById('mgrNotifPond').value;
-    const priority = document.getElementById('mgrNotifPriority').value;
-    if (!msg) { toast('Please enter a message before sending.', 'warning'); return; }
-
-    const btn = document.getElementById('btnSendMgrNotif');
-    const orig = btn.innerHTML;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending…';
-    btn.disabled = true;
-
-    fetchPost('send_mgr_notif',
-        `message=${encodeURIComponent(msg)}&pond_name=${encodeURIComponent(pond)}&priority=${priority}`)
-    .then(d => {
-        btn.innerHTML = orig;
-        btn.disabled = false;
-        if (!d.success) { toast(d.message || 'Failed to send', 'critical'); return; }
-        document.getElementById('mgrNotifMsg').value = '';
-        document.getElementById('mgrNotifPond').value = '';
-        document.getElementById('mgrNotifPriority').value = 'normal';
-        toast('Notification sent to admin!', 'success');
-        loadMgrNotifs(); // Refresh the list immediately
+function sendMgrNotif(){
+    const msg=document.getElementById('mgrNotifMsg').value.trim();
+    const pond=document.getElementById('mgrNotifPond').value;
+    const priority=document.getElementById('mgrNotifPriority').value;
+    if(!msg){toast('Please enter a message before sending.','warning');return;}
+    const btn=document.getElementById('btnSendMgrNotif');
+    const orig=btn.innerHTML;
+    btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Sending…';
+    btn.disabled=true;
+    fetchPost('send_mgr_notif',`message=${encodeURIComponent(msg)}&pond_name=${encodeURIComponent(pond)}&priority=${priority}`)
+    .then(d=>{
+        btn.innerHTML=orig;btn.disabled=false;
+        if(!d.success){toast(d.message||'Failed to send','critical');return;}
+        document.getElementById('mgrNotifMsg').value='';
+        document.getElementById('mgrNotifPond').value='';
+        document.getElementById('mgrNotifPriority').value='normal';
+        toast('Notification sent to admin!','success');
+        loadMgrNotifs();
     })
-    .catch(() => { btn.innerHTML = orig; btn.disabled = false; toast('Network error', 'critical'); });
+    .catch(()=>{btn.innerHTML=orig;btn.disabled=false;toast('Network error','critical');});
 }
 
-// ── loadMgrNotifs() ────────────────────────────
-// Fetches all notifications sent by this manager and renders them.
-// Automatically called when opening the "Notify Admin" section.
-// Also polls every 30 seconds to catch status updates from admin.
-function loadMgrNotifs() {
-    const icon = document.getElementById('mgrNotifsRefreshIcon');
-    if (icon) icon.style.animation = 'spin 1s linear infinite';
-
+function loadMgrNotifs(){
+    const icon=document.getElementById('mgrNotifsRefreshIcon');
+    if(icon)icon.style.animation='spin 1s linear infinite';
     fetchPost('get_mgr_notifs')
-    .then(d => {
-        if (icon) icon.style.animation = '';
-        const list = document.getElementById('mgrNotifsList');
-        if (!list) return;
-
-        if (!d.success || !d.notifications || d.notifications.length === 0) {
-            list.innerHTML = `<div style="text-align:center;padding:2rem;color:var(--muted)">
-                <i class="fas fa-paper-plane" style="font-size:2rem;display:block;margin-bottom:.5rem;opacity:.3"></i>
-                <div style="font-size:.85rem">No notifications sent yet.</div>
-            </div>`;
-            // Update sidebar badge
-            const badge = document.getElementById('mgrPendingBadge');
-            if (badge) { badge.style.display = 'none'; badge.textContent = ''; }
+    .then(d=>{
+        if(icon)icon.style.animation='';
+        const list=document.getElementById('mgrNotifsList');
+        if(!list)return;
+        if(!d.success||!d.notifications||d.notifications.length===0){
+            list.innerHTML=`<div style="text-align:center;padding:2rem;color:var(--muted)"><i class="fas fa-paper-plane" style="font-size:2rem;display:block;margin-bottom:.5rem;opacity:.3"></i><div style="font-size:.85rem">No notifications sent yet.</div></div>`;
+            const badge=document.getElementById('mgrPendingBadge');
+            if(badge){badge.style.display='none';badge.textContent='';}
             return;
         }
-
-        // Count pending so sidebar badge stays accurate
-        const pending = d.notifications.filter(n => n.status === 'Pending').length;
-        const badge = document.getElementById('mgrPendingBadge');
-        if (badge) {
-            badge.textContent = pending > 0 ? pending : '';
-            badge.style.display = pending > 0 ? '' : 'none';
-        }
-
-        list.innerHTML = d.notifications.map(n => {
-            const priorClass = MGR_PRIORITY_COLORS[n.priority] || 'pri-normal';
-            const priorLabel = MGR_PRIORITY_LABELS[n.priority] || n.priority;
-            const sentTime   = new Date(n.sent_at).toLocaleString('en-US', {timeZone:'Asia/Manila',hour12:true,month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
-            const rcvTime    = n.received_at  ? new Date(n.received_at).toLocaleString('en-US',  {timeZone:'Asia/Manila',hour12:true,hour:'2-digit',minute:'2-digit'}) : null;
-            const doneTime   = n.completed_at ? new Date(n.completed_at).toLocaleString('en-US', {timeZone:'Asia/Manila',hour12:true,hour:'2-digit',minute:'2-digit'}) : null;
-
-            const statusIcons = {Pending:'⏳',Received:'👁',Completed:'✅'};
-
+        const pending=d.notifications.filter(n=>n.status==='Pending').length;
+        const badge=document.getElementById('mgrPendingBadge');
+        if(badge){badge.textContent=pending>0?pending:'';badge.style.display=pending>0?'':'none';}
+        list.innerHTML=d.notifications.map(n=>{
+            const priorClass=MGR_PRIORITY_COLORS[n.priority]||'pri-normal';
+            const priorLabel=MGR_PRIORITY_LABELS[n.priority]||n.priority;
+            const sentTime=new Date(n.sent_at).toLocaleString('en-US',{timeZone:'Asia/Manila',hour12:true,month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+            const rcvTime=n.received_at?new Date(n.received_at).toLocaleString('en-US',{timeZone:'Asia/Manila',hour12:true,hour:'2-digit',minute:'2-digit'}):null;
+            const doneTime=n.completed_at?new Date(n.completed_at).toLocaleString('en-US',{timeZone:'Asia/Manila',hour12:true,hour:'2-digit',minute:'2-digit'}):null;
+            const statusIcons={Pending:'⏳',Received:'👁',Completed:'✅'};
             return `<div class="mgr-notif-item status-${n.status}">
                 <div class="mgr-notif-head">
                     <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
                         <span class="priority-pip ${priorClass}"></span>
-                        <strong style="font-size:.84rem">${n.pond_name ? 'Pond ' + n.pond_name : 'General'}</strong>
+                        <strong style="font-size:.84rem">${n.pond_name?'Pond '+n.pond_name:'General'}</strong>
                         <span style="font-family:var(--fm);font-size:.62rem;color:var(--muted)">${priorLabel}</span>
                     </div>
-                    <span class="status-pill ${n.status}">${statusIcons[n.status] || ''} ${n.status}</span>
+                    <span class="status-pill ${n.status}">${statusIcons[n.status]||''} ${n.status}</span>
                 </div>
                 <div class="mgr-notif-msg">${escHtml(n.message)}</div>
                 <div class="mgr-notif-meta">
                     <span><i class="far fa-clock"></i> Sent: ${sentTime}</span>
-                    ${rcvTime  ? `<span style="color:var(--cyan)"><i class="fas fa-eye"></i> Received: ${rcvTime}</span>`   : ''}
-                    ${doneTime ? `<span style="color:var(--green)"><i class="fas fa-check"></i> Done: ${doneTime}</span>` : ''}
+                    ${rcvTime?`<span style="color:var(--cyan)"><i class="fas fa-eye"></i> Received: ${rcvTime}</span>`:''}
+                    ${doneTime?`<span style="color:var(--green)"><i class="fas fa-check"></i> Done: ${doneTime}</span>`:''}
                 </div>
-                ${n.admin_note ? `<div class="mgr-notif-note"><i class="fas fa-reply"></i> Admin: ${escHtml(n.admin_note)}</div>` : ''}
+                ${n.admin_note?`<div class="mgr-notif-note"><i class="fas fa-reply"></i> Admin: ${escHtml(n.admin_note)}</div>`:''}
             </div>`;
         }).join('');
     })
-    .catch(() => { if (icon) icon.style.animation = ''; });
+    .catch(()=>{if(icon)icon.style.animation='';});
 }
 
-// ── escHtml() ──────────────────────────────────
-// Safe HTML escaping to prevent XSS in dynamically rendered content.
-function escHtml(str) {
-    if (!str) return '';
-    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
+function escHtml(str){if(!str)return '';return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
-// ── Auto-load when navigating to mgr-notifs section ──
-// Hook into showSection override to lazy-load notifications.
-const _mgrOrigShowSection = showSection;
-showSection = function(name) {
-    _mgrOrigShowSection(name);
-    if (name === 'mgr-notifs') loadMgrNotifs();
-};
+const _mgrOrigShowSection=showSection;
+showSection=function(name){_mgrOrigShowSection(name);if(name==='mgr-notifs')loadMgrNotifs();};
 
-// ── Auto-poll every 30 seconds when section is active ──
-setInterval(() => {
-    if (document.getElementById('sec-mgr-notifs')?.classList.contains('active')) {
-        loadMgrNotifs();
-    }
-}, 30000);
+setInterval(()=>{if(document.getElementById('sec-mgr-notifs')?.classList.contains('active'))loadMgrNotifs();},30000);
 
 window.addEventListener('resize',()=>{if(map)setTimeout(()=>map.invalidateSize(),100);if(metricsChart)metricsChart.resize();});
 window.addEventListener('orientationchange',()=>{setTimeout(()=>{if(map)map.invalidateSize();if(metricsChart)metricsChart.resize();},350);});
@@ -1181,3 +1117,4 @@ console.log('%c Manolo Fortich, Bukidnon | Alt+1…8: sections | Esc: close moda
 </script>
 </body>
 </html>
+
