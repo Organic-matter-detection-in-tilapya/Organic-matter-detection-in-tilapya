@@ -3310,11 +3310,9 @@ function _pollAdmInboxBadge() {
 setInterval(_pollAdmInboxBadge, 60000);
 
 // ── Auto-load when navigating to mgr-inbox section ──
-const _admOrigShowSection = showSection;
-showSection = function(name) {
-    _admOrigShowSection(name);
-    if (name === 'mgr-inbox') loadAdminMgrNotifs();
-};
+// NOTE: The actual showSection override is merged below with maybeInitIot
+// to avoid double-wrapping conflicts. Both hooks (mgr-inbox + iot) are
+// handled in ONE override at the bottom of this file.
 
 // ── Auto-poll every 30s when inbox section is open ──
 setInterval(() => {
@@ -3708,12 +3706,15 @@ function maybeInitIot(name) {
 }
 
 // ═══════════════════════════════════════════════
-// OVERRIDE showSection to hook new features
+// OVERRIDE showSection — single merged hook
+// Handles BOTH iot lazy-init AND mgr-inbox load.
+// ONE override only — prevents double-wrap bugs.
 // ═══════════════════════════════════════════════
 const _origShowSection = showSection;
 showSection = function(name) {
     _origShowSection(name);
     maybeInitIot(name);
+    if (name === 'mgr-inbox') loadAdminMgrNotifs();
 };
 
 // ═══════════════════════════════════════════════

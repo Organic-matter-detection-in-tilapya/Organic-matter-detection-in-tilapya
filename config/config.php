@@ -3,7 +3,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Database connection - TAMA ito dahil nasa config folder din
+// Database connection - 
 require_once __DIR__ . '/db_connect.php';  // __DIR__ = /config/
 
 // Site URL

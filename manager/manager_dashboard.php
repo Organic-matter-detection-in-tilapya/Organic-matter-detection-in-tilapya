@@ -1028,8 +1028,41 @@ function initChart(){const ctx=document.getElementById('metricsChart');if(!ctx)r
 function switchPeriod(period,btn){document.querySelectorAll('.period-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');const orig=btn.textContent;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i>';fetchPost('get_chart_data',`period=${period}`).then(d=>{metricsChart.data.labels=d.labels;metricsChart.data.datasets[0].data=d.organic;metricsChart.data.datasets[1].data=d.temperature;metricsChart.data.datasets[2].data=d.ph;metricsChart.update();btn.textContent=orig;toast(`Chart: ${period}`,'info');});}
 
 function ackAlert(id){fetchPost('acknowledge_alert',`alert_id=${id}`).then(d=>{toast(d.message,'success');setTimeout(()=>location.reload(),600);});}
-function notifyAdmin(pondName){fetchPost('notify_admin',`pond=${pondName}&message=Manager escalated: Alert for Pond ${pondName}`).then(d=>{toast(d.message,'success');});}
-function notifyAllAdmin(){Object.keys(PONDS).forEach(key=>notifyAdmin(key));toast('Admin notified for all active alerts','success');}
+// ── notifyAdmin(pondName) — QUICK SEND ─────────
+// Called by the "Notify Admin" shortcut buttons on pond cards and alert rows.
+// Pre-fills and auto-submits a notification with 'high' priority for the pond.
+// This now writes to manager_notifications via send_mgr_notif — NOT a toast-only call.
+// After sending, navigates to the Notify Admin section so Manager can see it.
+function notifyAdmin(pondName) {
+    const msg = `Manager escalated: Attention required for Pond ${pondName}. Please review current readings.`;
+    fetchPost('send_mgr_notif',
+        `message=${encodeURIComponent(msg)}&pond_name=${encodeURIComponent(pondName)}&priority=high`)
+    .then(d => {
+        toast(d.success ? `Admin notified for Pond ${pondName}` : (d.message || 'Failed'), d.success ? 'success' : 'critical');
+        if (d.success) {
+            // Refresh the sent list if Notify Admin section is already open
+            if (document.getElementById('sec-mgr-notifs')?.classList.contains('active')) {
+                loadMgrNotifs();
+            }
+        }
+    })
+    .catch(() => toast('Network error', 'critical'));
+}
+
+// ── notifyAllAdmin() ────────────────────────────
+// Sends one notification per pond that is currently warning or critical.
+// Uses the pond's current status from the live PONDS object.
+// Staggers requests 150ms apart to avoid server flood.
+function notifyAllAdmin() {
+    const urgentPonds = Object.keys(PONDS).filter(k => PONDS[k].status === 'critical' || PONDS[k].status === 'warning');
+    if (!urgentPonds.length) { toast('No warning or critical ponds to escalate', 'info'); return; }
+    let delay = 0;
+    urgentPonds.forEach(key => {
+        setTimeout(() => notifyAdmin(key), delay);
+        delay += 150;
+    });
+    toast(`Notifying admin for ${urgentPonds.length} pond(s)…`, 'warning');
+}
 
 function showPondModal(key){const pond=PONDS[key],cfg=POND_COORDS[key];if(!pond||!cfg)return;const color=getColor(pond.status),mc=pond.organic_level>80?'meter-critical':(pond.organic_level>60?'meter-warning':'meter-safe');document.getElementById('pondModalTitle').innerHTML=`<i class="fas fa-map-marker-alt" style="color:${color}"></i> ${cfg.name}`;document.getElementById('pondModalBody').innerHTML=`<div style="text-align:center;margin-bottom:.9rem"><span class="badge badge-${pond.status}" style="font-size:.8rem;padding:.4rem 1rem"><span class="dot-blink"></span> ${pond.status.toUpperCase()}</span></div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.7rem;margin-bottom:1rem"><div style="text-align:center;padding:.85rem .4rem;background:var(--bg-elevated);border-radius:var(--r-md);border:1px solid var(--bdr)"><i class="fas fa-seedling ic-organic" style="font-size:1.3rem;display:block;margin-bottom:.3rem"></i><div class="metric-val ic-organic" style="font-size:1.3rem">${pond.organic_level}%</div><div class="metric-lbl">Organic</div><div class="meter" style="margin-top:.4rem"><div class="meter-fill ${mc}" style="width:${pond.organic_level}%"></div></div></div><div style="text-align:center;padding:.85rem .4rem;background:var(--bg-elevated);border-radius:var(--r-md);border:1px solid var(--bdr)"><i class="fas fa-thermometer-half ic-temp" style="font-size:1.3rem;display:block;margin-bottom:.3rem"></i><div class="metric-val ic-temp" style="font-size:1.3rem">${pond.temperature}°C</div><div class="metric-lbl">Temp</div><div class="meter" style="margin-top:.4rem"><div class="meter-fill meter-warning" style="width:${Math.min(100,(pond.temperature-20)*10)}%"></div></div></div><div style="text-align:center;padding:.85rem .4rem;background:var(--bg-elevated);border-radius:var(--r-md);border:1px solid var(--bdr)"><i class="fas fa-flask ic-ph" style="font-size:1.3rem;display:block;margin-bottom:.3rem"></i><div class="metric-val ic-ph" style="font-size:1.3rem">${pond.ph}</div><div class="metric-lbl">pH</div><div class="meter" style="margin-top:.4rem"><div class="meter-fill meter-safe" style="width:${Math.min(100,pond.ph*10)}%"></div></div></div></div><div class="pond-detail-grid"><div class="detail-row"><div class="detail-lbl">Assigned Staff</div><div class="detail-val"><i class="fas fa-user" style="color:var(--teal)"></i> ${pond.staff}</div></div><div class="detail-row"><div class="detail-lbl">Location</div><div class="detail-val"><i class="fas fa-map-pin" style="color:var(--red)"></i> ${pond.location}</div></div><div class="detail-row"><div class="detail-lbl">Coordinates</div><div class="detail-val" style="font-family:var(--fm);font-size:.75rem">${cfg.center[0].toFixed(4)}, ${cfg.center[1].toFixed(4)}</div></div><div class="detail-row"><div class="detail-lbl">Last Reading</div><div class="detail-val" style="font-family:var(--fm);font-size:.75rem">${new Date().toLocaleTimeString('en-US',{hour12:true,timeZone:'Asia/Manila'})}</div></div></div><div style="display:flex;gap:.5rem;margin-top:1rem;flex-wrap:wrap"><button class="btn btn-primary btn-sm" style="flex:1" onclick="closeModal('pondModal');gotoMap('${key}')"><i class="fas fa-map-marker-alt"></i> Map</button><button class="btn btn-warning btn-sm" style="flex:1" onclick="notifyAdmin('${key}');closeModal('pondModal')"><i class="fas fa-bell"></i> Notify Admin</button><button class="btn btn-ghost btn-sm" style="flex:1" onclick="refreshPond('${key}');closeModal('pondModal')"><i class="fas fa-sync-alt"></i> Refresh</button></div>`;openModal('pondModal');}
 
