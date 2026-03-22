@@ -760,6 +760,96 @@ tr:last-child td { border-bottom:none; }
 .toast.info     { background:rgba(0,201,177,.1);    border:1px solid rgba(0,201,177,.2);   color:var(--teal); }
 
 /* ====================================================
+   OVERVIEW SECTION — Status Banner & Sensor Cards
+==================================================== */
+
+/* Status Banner */
+.ov-banner {
+    display:flex; justify-content:space-between; align-items:center;
+    flex-wrap:wrap; gap:.8rem;
+    padding:1rem 1.3rem; border-radius:var(--r-lg);
+    margin-bottom:1.2rem; border:1px solid transparent;
+    position:relative; overflow:hidden; animation:fadeUp .4s ease both;
+}
+.ov-banner::before {
+    content:''; position:absolute; top:0; left:0; right:0; height:3px;
+}
+.ov-banner.safe     { background:rgba(57,255,138,.07);  border-color:rgba(57,255,138,.22); }
+.ov-banner.safe::before { background:linear-gradient(90deg,transparent,var(--green),transparent); }
+.ov-banner.warning  { background:rgba(255,184,0,.07);   border-color:rgba(255,184,0,.25); }
+.ov-banner.warning::before { background:linear-gradient(90deg,transparent,var(--amber),transparent); }
+.ov-banner.critical { background:rgba(255,59,92,.07);   border-color:rgba(255,59,92,.3); animation:pulseGlow 2.2s infinite; }
+.ov-banner.critical::before { background:linear-gradient(90deg,transparent,var(--red),transparent); }
+
+.ov-banner-left { display:flex; align-items:center; gap:.9rem; flex-wrap:wrap; }
+.ov-banner-icon { font-size:1.6rem; flex-shrink:0; }
+.ov-banner.safe     .ov-banner-icon { color:var(--green); }
+.ov-banner.warning  .ov-banner-icon { color:var(--amber); }
+.ov-banner.critical .ov-banner-icon { color:var(--red); }
+.ov-banner-title { font-size:.92rem; font-weight:700; margin-bottom:.18rem; }
+.ov-banner.safe     .ov-banner-title { color:var(--green); }
+.ov-banner.warning  .ov-banner-title { color:var(--amber); }
+.ov-banner.critical .ov-banner-title { color:var(--red); }
+.ov-banner-msg { font-size:.78rem; color:var(--txt2); }
+.ov-next-refresh {
+    font-family:var(--fm); font-size:.68rem; color:var(--muted);
+    background:var(--bg-elevated); border:1px solid var(--bdr);
+    padding:.28rem .7rem; border-radius:6px;
+    white-space:nowrap;
+}
+.ov-next-refresh span { color:var(--teal); font-weight:700; }
+
+/* Sensor Summary Cards Grid */
+.ov-sensor-grid {
+    display:grid; grid-template-columns:repeat(3,1fr); gap:1rem;
+    margin-bottom:1rem;
+}
+.ov-sensor-card {
+    background:var(--bg-card); border:1px solid var(--bdr);
+    border-radius:var(--r-lg); padding:1.1rem 1.1rem;
+    transition:.3s; position:relative; overflow:hidden;
+    animation:fadeUp .5s ease both;
+}
+.ov-sensor-card:hover { border-color:var(--bdr-glow); transform:translateY(-2px); }
+.ov-sensor-header {
+    display:flex; justify-content:space-between; align-items:center;
+    margin-bottom:.65rem; gap:.4rem; flex-wrap:wrap;
+}
+.ov-sensor-label { font-size:.74rem; font-weight:700; display:flex; align-items:center; gap:.4rem; color:var(--txt2); }
+.ov-sensor-badge {
+    font-family:var(--fm); font-size:.58rem; font-weight:700;
+    padding:.15rem .55rem; border-radius:4px; letter-spacing:.3px;
+    background:rgba(57,255,138,.1); color:var(--green); border:1px solid rgba(57,255,138,.25);
+}
+.ov-sensor-badge.warn   { background:rgba(255,184,0,.1); color:var(--amber); border-color:rgba(255,184,0,.25); }
+.ov-sensor-badge.crit   { background:rgba(255,59,92,.1);  color:var(--red);   border-color:rgba(255,59,92,.25); animation:blink 1.4s infinite; }
+.ov-sensor-value { display:flex; align-items:baseline; gap:.35rem; margin-bottom:.65rem; }
+.ov-val { font-family:var(--fm); font-size:2.1rem; font-weight:700; line-height:1; }
+.ov-unit { font-size:.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:.4px; }
+#ovCardOrganic .ov-val { color:var(--green); }
+#ovCardTemp    .ov-val { color:var(--amber); }
+#ovCardPH      .ov-val { color:var(--violet); }
+.ov-sensor-bar { height:5px; background:rgba(255,255,255,.07); border-radius:3px; overflow:hidden; margin-bottom:.5rem; }
+.ov-bar-fill { height:100%; border-radius:3px; transition:width 1.2s ease; }
+.ov-bar-organic { background:linear-gradient(90deg,var(--green),rgba(57,255,138,.5)); }
+.ov-bar-temp    { background:linear-gradient(90deg,var(--amber),rgba(255,184,0,.5)); }
+.ov-bar-ph      { background:linear-gradient(90deg,var(--violet),rgba(176,108,255,.5)); }
+.ov-sensor-thresholds {
+    display:flex; justify-content:space-between;
+    font-family:var(--fm); font-size:.6rem; color:var(--muted);
+}
+
+/* Actions Row */
+.ov-actions-row {
+    display:flex; justify-content:space-between; align-items:center;
+    flex-wrap:wrap; gap:.6rem; margin-bottom:1.2rem;
+    padding:.7rem 1rem; background:var(--bg-elevated);
+    border:1px solid var(--bdr); border-radius:var(--r-md);
+}
+.ov-last-updated { font-family:var(--fm); font-size:.7rem; color:var(--muted); }
+.ov-last-updated strong { color:var(--txt2); }
+
+/* ====================================================
    FOOTER
 ==================================================== */
 .dash-footer {
@@ -786,6 +876,7 @@ tr:last-child td { border-bottom:none; }
     .grid-3    { grid-template-columns:1fr 1fr; }
     .gauges-row{ grid-template-columns:repeat(3,1fr); }
     .hero-readings { grid-template-columns:repeat(3,1fr); }
+    .ov-sensor-grid { grid-template-columns:1fr 1fr 1fr; }
 }
 
 /* ====================================================
@@ -805,6 +896,9 @@ tr:last-child td { border-bottom:none; }
     }
     .topbar { padding:.6rem .9rem; }
     .topbar-left { gap:.5rem; }
+    .ov-sensor-grid { grid-template-columns:1fr; }
+    .ov-banner { flex-direction:column; align-items:flex-start; }
+    .ov-actions-row { flex-direction:column; align-items:flex-start; }
     .kpi-grid { grid-template-columns:1fr 1fr; gap:.7rem; }
     .kpi { padding:.95rem 1rem; }
     .kpi-val { font-size:1.5rem; }
@@ -972,110 +1066,186 @@ tr:last-child td { border-bottom:none; }
 ============================== -->
 <div class="section-panel active" id="sec-overview">
 
-    <!-- KPI Row -->
-    <div class="kpi-grid">
-        <div class="kpi" style="--kc:var(--green)">
-            <div class="kpi-corner">AVG</div>
-            <div class="kpi-icon"><i class="fas fa-seedling"></i></div>
-            <div class="kpi-val" id="kpi-organic"><?php echo $avg_organic; ?></div>
-            <div class="kpi-label">Avg Organic mg/L</div>
-        </div>
-        <div class="kpi" style="--kc:var(--amber)">
-            <div class="kpi-corner">AVG</div>
-            <div class="kpi-icon"><i class="fas fa-thermometer-half"></i></div>
-            <div class="kpi-val" id="kpi-temp"><?php echo $avg_temp; ?></div>
-            <div class="kpi-label">Avg Temp °C</div>
-        </div>
-        <div class="kpi" style="--kc:var(--violet)">
-            <div class="kpi-corner">AVG</div>
-            <div class="kpi-icon"><i class="fas fa-flask"></i></div>
-            <div class="kpi-val" id="kpi-ph"><?php echo $avg_ph; ?></div>
-            <div class="kpi-label">Avg pH Level</div>
-        </div>
-    </div>
-
-    <!-- Live Readings Hero -->
-    <div class="hero-status <?php echo $current_status; ?>" id="heroCard">
-        <div class="hero-top">
+    <!-- ── Pond Status Banner ─────────────────────────────── -->
+    <?php
+    $bannerClass = $current_status === 'safe'
+        ? 'ov-banner safe'
+        : ($current_status === 'warning' ? 'ov-banner warning' : 'ov-banner critical');
+    $bannerIcon  = $current_status === 'safe'
+        ? 'check-circle'
+        : ($current_status === 'warning' ? 'exclamation-triangle' : 'times-circle');
+    $bannerMsg   = $current_status === 'safe'
+        ? 'All readings are within safe range. No action required.'
+        : ($current_status === 'warning'
+            ? 'One or more readings are approaching threshold. Monitor closely.'
+            : 'Critical reading detected! Immediate action may be required.');
+    ?>
+    <div class="<?php echo $bannerClass; ?>" id="ovBanner">
+        <div class="ov-banner-left">
+            <div class="ov-banner-icon"><i class="fas fa-<?php echo $bannerIcon; ?>"></i></div>
             <div>
-                <div class="hero-pond-name">
-                    <i class="fas fa-water" style="color:var(--teal)"></i>
-                    Pond <?php echo htmlspecialchars($pond); ?> — Live Readings
+                <div class="ov-banner-title" id="ovBannerTitle">
+                    Pond <?php echo htmlspecialchars($pond); ?> — Status:
+                    <span id="ovBannerStatus"><?php echo strtoupper($current_status); ?></span>
                 </div>
-                <div class="hero-meta">Real-time sensor data · Auto-refresh every 5 seconds</div>
-            </div>
-            <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
-                <span class="badge badge-<?php echo $current_status; ?>" id="heroBadge">
-                    <span class="dot-blink"></span> <?php echo strtoupper($current_status); ?>
-                </span>
-                <button class="btn btn-ghost btn-sm" onclick="manualRefresh()">
-                    <i class="fas fa-sync-alt" id="refreshIcon"></i>
-                </button>
+                <div class="ov-banner-msg" id="ovBannerMsg"><?php echo $bannerMsg; ?></div>
             </div>
         </div>
-
-        <div class="hero-readings">
-            <div class="reading-block organic">
-                <span class="reading-icon" style="color:var(--green)"><i class="fas fa-seedling"></i></span>
-                <div class="reading-val" id="liveOrganic"><?php echo $latest_organic; ?></div>
-                <div class="reading-unit">mg / L</div>
-                <div class="reading-label">Organic Matter</div>
-                <div class="mini-bar"><div class="mini-bar-fill organic" id="barOrganic" style="width:<?php echo min(100,$latest_organic/0.35); ?>%"></div></div>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+            <div class="ov-next-refresh">
+                Next refresh in <span id="ovCountdown">15</span>s
             </div>
-            <div class="reading-block temp">
-                <span class="reading-icon" style="color:var(--amber)"><i class="fas fa-thermometer-half"></i></span>
-                <div class="reading-val" id="liveTemp"><?php echo $latest_temp; ?></div>
-                <div class="reading-unit">°C</div>
-                <div class="reading-label">Water Temperature</div>
-                <div class="mini-bar"><div class="mini-bar-fill temp" id="barTemp" style="width:<?php echo min(100,($latest_temp-20)*10); ?>%"></div></div>
-            </div>
-            <div class="reading-block ph">
-                <span class="reading-icon" style="color:var(--violet)"><i class="fas fa-flask"></i></span>
-                <div class="reading-val" id="livePH"><?php echo $latest_ph; ?></div>
-                <div class="reading-unit">pH</div>
-                <div class="reading-label">pH Level</div>
-                <div class="mini-bar"><div class="mini-bar-fill ph" id="barPH" style="width:<?php echo min(100,$latest_ph*10); ?>%"></div></div>
-            </div>
-        </div>
-
-        <div class="hero-bottom">
-            <div class="hero-ts"><i class="far fa-clock"></i> Last updated: <span id="heroTs"><?php echo date('h:i:s A'); ?></span></div>
-            <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-                <button class="btn btn-warning btn-sm" onclick="openNotifyModal()">
-                    <i class="fas fa-bell"></i> Notify Manager
-                </button>
-                <button class="btn btn-sky btn-sm" onclick="openLogModal()">
-                    <i class="fas fa-clipboard-list"></i> Log Action
-                </button>
-            </div>
+            <button class="btn btn-ghost btn-sm" onclick="manualRefresh()">
+                <i class="fas fa-sync-alt" id="refreshIcon"></i> Refresh Now
+            </button>
         </div>
     </div>
 
-    <!-- Quick summary of recent logs -->
-    <div class="card">
-        <div class="card-head">
-            <div class="card-title"><i class="fas fa-clipboard-list"></i> Recent Activity</div>
-            <button class="btn btn-ghost btn-sm" onclick="showSection('maintenance')"><i class="fas fa-arrow-right"></i> View All</button>
+    <!-- ── Live Sensor Summary Cards ─────────────────────── -->
+    <div class="ov-sensor-grid">
+
+        <!-- Organic -->
+        <div class="ov-sensor-card" id="ovCardOrganic">
+            <div class="ov-sensor-header">
+                <div class="ov-sensor-label"><i class="fas fa-seedling" style="color:var(--green)"></i> Organic Matter</div>
+                <span class="ov-sensor-badge" id="ovOrgBadge">SAFE</span>
+            </div>
+            <div class="ov-sensor-value">
+                <span class="ov-val" id="ovOrgVal"><?php echo $latest_organic; ?></span>
+                <span class="ov-unit">mg/L</span>
+            </div>
+            <div class="ov-sensor-bar">
+                <div class="ov-bar-fill ov-bar-organic" id="ovBarOrganic" style="width:<?php echo min(100,$latest_organic/0.35); ?>%"></div>
+            </div>
+            <div class="ov-sensor-thresholds">
+                <span>Safe &lt;<?php echo $thresholds['organic_warn']; ?></span>
+                <span>Warn &lt;<?php echo $thresholds['organic_crit']; ?></span>
+            </div>
         </div>
-        <div style="max-height:220px;overflow-y:auto">
-            <?php foreach(array_slice($maintenance_logs,0,3) as $log): ?>
-            <div class="log-item">
-                <div class="log-icon"><i class="fas fa-tools"></i></div>
-                <div style="flex:1">
-                    <div class="log-title"><?php echo htmlspecialchars($log['action']); ?></div>
-                    <div class="log-meta">
-                        <i class="fas fa-user"></i> <?php echo htmlspecialchars($log['logged_by']); ?> &nbsp;·&nbsp;
-                        <i class="far fa-clock"></i> <?php echo date('M d, h:i A', strtotime($log['logged_at'])); ?>
+
+        <!-- Temperature -->
+        <div class="ov-sensor-card" id="ovCardTemp">
+            <div class="ov-sensor-header">
+                <div class="ov-sensor-label"><i class="fas fa-thermometer-half" style="color:var(--amber)"></i> Temperature</div>
+                <span class="ov-sensor-badge" id="ovTempBadge">SAFE</span>
+            </div>
+            <div class="ov-sensor-value">
+                <span class="ov-val" id="ovTempVal"><?php echo $latest_temp; ?></span>
+                <span class="ov-unit">°C</span>
+            </div>
+            <div class="ov-sensor-bar">
+                <div class="ov-bar-fill ov-bar-temp" id="ovBarTemp" style="width:<?php echo min(100,($latest_temp-20)*10); ?>%"></div>
+            </div>
+            <div class="ov-sensor-thresholds">
+                <span>Safe &lt;<?php echo $thresholds['temp_warn']; ?>°C</span>
+                <span>Crit &gt;<?php echo $thresholds['temp_crit']; ?>°C</span>
+            </div>
+        </div>
+
+        <!-- pH -->
+        <div class="ov-sensor-card" id="ovCardPH">
+            <div class="ov-sensor-header">
+                <div class="ov-sensor-label"><i class="fas fa-flask" style="color:var(--violet)"></i> pH Level</div>
+                <span class="ov-sensor-badge" id="ovPHBadge">SAFE</span>
+            </div>
+            <div class="ov-sensor-value">
+                <span class="ov-val" id="ovPHVal"><?php echo $latest_ph; ?></span>
+                <span class="ov-unit">pH</span>
+            </div>
+            <div class="ov-sensor-bar">
+                <div class="ov-bar-fill ov-bar-ph" id="ovBarPH" style="width:<?php echo min(100,$latest_ph*10); ?>%"></div>
+            </div>
+            <div class="ov-sensor-thresholds">
+                <span>Range <?php echo $thresholds['ph_low_warn']; ?>–<?php echo $thresholds['ph_high_warn']; ?></span>
+                <span>Crit &lt;<?php echo $thresholds['ph_low_crit']; ?> / &gt;<?php echo $thresholds['ph_high_crit']; ?></span>
+            </div>
+        </div>
+
+    </div><!-- /ov-sensor-grid -->
+
+    <!-- ── Quick Actions + Last Updated ─────────────────── -->
+    <div class="ov-actions-row">
+        <div class="ov-last-updated">
+            <i class="far fa-clock"></i> Last reading: <strong id="ovLastTs"><?php echo date('h:i:s A'); ?></strong>
+            &nbsp;·&nbsp; Next in <strong id="ovCountdown2">15</strong>s
+        </div>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+            <button class="btn btn-warning btn-sm" onclick="openNotifyModal()">
+                <i class="fas fa-bell"></i> Notify Manager
+            </button>
+            <button class="btn btn-sky btn-sm" onclick="openLogModal()">
+                <i class="fas fa-clipboard-list"></i> Log Action
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="showSection('readings')">
+                <i class="fas fa-tachometer-alt"></i> Full Sensors
+            </button>
+        </div>
+    </div>
+
+    <!-- ── System Status Row ─────────────────────────────── -->
+    <div class="grid-2" style="margin-bottom:1.2rem">
+
+        <!-- Threshold Status -->
+        <div class="card">
+            <div class="card-head">
+                <div class="card-title"><i class="fas fa-sliders-h"></i> Threshold Status</div>
+                <div class="iot-live"><span></span> LIVE</div>
+            </div>
+            <div class="threshold-row ok" id="ov-thr-organic">
+                <div class="threshold-label"><i class="fas fa-seedling" style="color:var(--green)"></i> Organic</div>
+                <div class="threshold-vals">
+                    <span style="font-size:.66rem;color:var(--muted)">Limit: <?php echo $thresholds['organic_warn']; ?> mg/L</span>
+                    <span class="threshold-current" id="ov-thr-org-val" style="color:var(--green)"><?php echo $latest_organic; ?> mg/L</span>
+                </div>
+            </div>
+            <div class="threshold-row ok" id="ov-thr-temp">
+                <div class="threshold-label"><i class="fas fa-thermometer-half" style="color:var(--amber)"></i> Temperature</div>
+                <div class="threshold-vals">
+                    <span style="font-size:.66rem;color:var(--muted)">Limit: <?php echo $thresholds['temp_warn']; ?>°C</span>
+                    <span class="threshold-current" id="ov-thr-temp-val" style="color:var(--amber)"><?php echo $latest_temp; ?>°C</span>
+                </div>
+            </div>
+            <div class="threshold-row ok" id="ov-thr-ph">
+                <div class="threshold-label"><i class="fas fa-flask" style="color:var(--violet)"></i> pH Level</div>
+                <div class="threshold-vals">
+                    <span style="font-size:.66rem;color:var(--muted)">Range: <?php echo $thresholds['ph_low_warn']; ?>–<?php echo $thresholds['ph_high_warn']; ?></span>
+                    <span class="threshold-current" id="ov-thr-ph-val" style="color:var(--violet)"><?php echo $latest_ph; ?></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Maintenance -->
+        <div class="card">
+            <div class="card-head">
+                <div class="card-title"><i class="fas fa-clipboard-list"></i> Recent Activity</div>
+                <button class="btn btn-ghost btn-sm" onclick="showSection('maintenance')"><i class="fas fa-arrow-right"></i> All Logs</button>
+            </div>
+            <div style="max-height:180px;overflow-y:auto">
+                <?php if(empty($maintenance_logs)): ?>
+                <div style="text-align:center;padding:1.5rem;color:var(--muted);font-size:.82rem">
+                    <i class="fas fa-clipboard" style="font-size:1.5rem;display:block;margin-bottom:.4rem;opacity:.3"></i>
+                    No recent maintenance entries
+                </div>
+                <?php else: foreach(array_slice($maintenance_logs,0,3) as $log): ?>
+                <div class="log-item">
+                    <div class="log-icon"><i class="fas fa-tools"></i></div>
+                    <div style="flex:1">
+                        <div class="log-title"><?php echo htmlspecialchars($log['action']); ?></div>
+                        <div class="log-meta">
+                            <i class="far fa-clock"></i> <?php echo date('M d, h:i A', strtotime($log['logged_at'])); ?>
+                        </div>
+                        <?php if (!empty($log['notes'])): ?>
+                        <div class="log-notes"><i class="fas fa-sticky-note"></i> <?php echo htmlspecialchars($log['notes']); ?></div>
+                        <?php endif; ?>
                     </div>
-                    <?php if (!empty($log['notes'])): ?>
-                    <div class="log-notes"><i class="fas fa-sticky-note"></i> <?php echo htmlspecialchars($log['notes']); ?></div>
-                    <?php endif; ?>
                 </div>
+                <?php endforeach; endif; ?>
             </div>
-            <?php endforeach; ?>
         </div>
-    </div>
-</div>
+
+    </div><!-- /grid-2 -->
+
+</div><!-- /sec-overview -->
 
 <!-- ==============================
      SECTION: LIVE READINGS
@@ -1179,7 +1349,7 @@ tr:last-child td { border-bottom:none; }
                     <i class="fas fa-water" style="color:var(--teal)"></i>
                     Pond <?php echo htmlspecialchars($pond); ?> — Current Values
                 </div>
-                <div class="hero-meta">Sensor · Manolo Fortich, Bukidnon</div>
+                <div class="hero-meta">Sensor · Manolo Fortich, Bukidnon · Refresh every 15s</div>
             </div>
             <div style="display:flex;align-items:center;gap:.6rem">
                 <span class="badge badge-<?php echo $current_status; ?>" id="heroBadge2">
@@ -1504,6 +1674,7 @@ const BNAV_SECTIONS = ['overview','readings','trends','maintenance'];
 
 let metricsChart;
 let simInterval;
+let countdownInterval;
 let isSimRunning = true;
 let sessionSecs  = 0;
 let notifyLevel  = 'warning';
@@ -1516,6 +1687,14 @@ document.addEventListener('DOMContentLoaded', () => {
     initChart();
     startSim();
     startSessionTimer();
+    // Populate overview panel immediately with server-side values
+    updateOverviewPanel(
+        <?php echo $latest_organic; ?>,
+        <?php echo $latest_temp; ?>,
+        <?php echo $latest_ph; ?>,
+        '<?php echo $current_status; ?>',
+        '<?php echo date('h:i:s A'); ?>'
+    );
 });
 
 // ============================================================
@@ -1651,11 +1830,13 @@ function startSim() {
     isSimRunning=true;
     document.getElementById('simIcon').className='fas fa-pause';
     document.getElementById('simLabel').textContent='Pause';
-    simInterval=setInterval(fetchReading,5000);
+    simInterval=setInterval(fetchReading,15000);
+    startCountdown();
 }
 function stopSim() {
     isSimRunning=false;
     clearInterval(simInterval);
+    clearInterval(countdownInterval);
     document.getElementById('simIcon').className='fas fa-play';
     document.getElementById('simLabel').textContent='Resume';
 }
@@ -1673,7 +1854,23 @@ function fetchReading() {
         addHistoryRow(d.organic,d.temp,d.ph,d.status);
         if(d.status==='critical')
             toast(`⚠ CRITICAL: Organic ${d.organic} mg/L on Pond ${POND}`,'critical');
+        resetCountdown(); // restart the 15s countdown after each fetch
     });
+}
+
+// ── Countdown timer (visible in Overview) ──────────────────
+function startCountdown() {
+    clearInterval(countdownInterval);
+    let secs = 15;
+    function tick() {
+        secs = Math.max(0, secs - 1);
+        ['ovCountdown','ovCountdown2'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=secs;});
+    }
+    tick();
+    countdownInterval = setInterval(tick, 1000);
+}
+function resetCountdown() {
+    startCountdown();
 }
 
 function manualRefresh() {
@@ -1685,6 +1882,7 @@ function manualRefresh() {
         icon.style.animation='';
         if(!d.success) return;
         updateDisplay(d.organic,d.temp,d.ph,d.status,d.timestamp);
+        resetCountdown();
         toast('Readings refreshed','success');
     });
 }
@@ -1693,19 +1891,25 @@ function manualRefresh() {
 // UPDATE DISPLAY
 // ============================================================
 function updateDisplay(organic, temp, ph, status, ts) {
-    // Primary hero (overview section)
-    ['liveOrganic','liveOrganic2'].forEach(id=>{const e=document.getElementById(id);if(e){e.textContent=organic;e.style.animation='countFlash .6s ease';setTimeout(()=>e.style.animation='',600);}});
-    ['liveTemp','liveTemp2'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=temp;});
-    ['livePH','livePH2'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=ph;});
-    ['heroTs','heroTs2'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=ts||new Date().toLocaleTimeString('en-US',{timeZone:'Asia/Manila',hour12:true});});
+    // ── Live Readings section (heroCard2) ──────────────────
+    ['liveOrganic2'].forEach(id=>{const e=document.getElementById(id);if(e){e.textContent=organic;e.style.animation='countFlash .6s ease';setTimeout(()=>e.style.animation='',600);}});
+    ['liveTemp2'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=temp;});
+    ['livePH2'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=ph;});
+    ['heroTs2'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=ts||new Date().toLocaleTimeString('en-US',{timeZone:'Asia/Manila',hour12:true});});
 
-    // Progress bars
+    // Hero status class + badge (readings section only)
+    const hc2=document.getElementById('heroCard2');
+    if(hc2) hc2.className=`hero-status ${status}`;
+    const hb2=document.getElementById('heroBadge2');
+    if(hb2){hb2.className=`badge badge-${status}`;hb2.innerHTML=`<span class="dot-blink"></span> ${status.toUpperCase()}`;}
+
+    // ── Progress bars (readings section) ──────────────────
     const bO=document.getElementById('barOrganic'),bT=document.getElementById('barTemp'),bP=document.getElementById('barPH');
     if(bO){bO.style.width=Math.min(100,organic/0.35)+'%';bO.style.background=organic>=THR.organic_crit?'var(--red)':(organic>=THR.organic_warn?'var(--amber)':'var(--green)');}
     if(bT) bT.style.width=Math.min(100,(temp-20)*10)+'%';
     if(bP) bP.style.width=Math.min(100,ph*10)+'%';
 
-    // Gauges
+    // ── Gauges ─────────────────────────────────────────────
     updateGauge('gaugeOrganic',organic,0,35);
     updateGauge('gaugeTemp',temp,20,38);
     updateGauge('gaugePH',ph,5,10);
@@ -1714,24 +1918,95 @@ function updateDisplay(organic, temp, ph, status, ts) {
     if(gTv) gTv.textContent=temp;
     if(gPv) gPv.textContent=ph;
 
-    // Thresholds
+    // ── Threshold panel (readings section) ─────────────────
     updateThreshold('thr-organic','thr-organic-val',organic,THR.organic_warn,THR.organic_crit,'var(--green)',true);
     updateThreshold('thr-temp',  'thr-temp-val',  temp,  THR.temp_warn,  THR.temp_crit,  'var(--amber)',true);
     updateThresholdPH('thr-ph','thr-ph-val',ph);
 
-    // Hero status classes + badges
-    ['heroCard','heroCard2'].forEach(id=>{const e=document.getElementById(id);if(e)e.className=`hero-status ${status}`;});
-    ['heroBadge','heroBadge2'].forEach(id=>{const e=document.getElementById(id);if(e){e.className=`badge badge-${status}`;e.innerHTML=`<span class="dot-blink"></span> ${status.toUpperCase()}`;}});
-
-    // Status tag (topbar)
+    // ── Topbar status tag ──────────────────────────────────
     const tag=document.getElementById('statusTag');
     if(tag){const cls=status==='safe'?'green':(status==='warning'?'amber':'red');tag.className=`sys-tag ${cls}`;tag.innerHTML=`<span class="blink-dot"></span> ${status.toUpperCase()}`;}
 
-    // Notify modal current readings
+    // ── Notify modal current readings ──────────────────────
     const nO=document.getElementById('nm-org'),nT=document.getElementById('nm-tmp'),nP=document.getElementById('nm-ph');
     if(nO) nO.textContent=organic;
     if(nT) nT.textContent=temp;
     if(nP) nP.textContent=ph;
+
+    // ── Overview section updates ───────────────────────────
+    updateOverviewPanel(organic, temp, ph, status, ts);
+}
+
+// ============================================================
+// UPDATE OVERVIEW PANEL
+// Updates the new status-summary overview section elements
+// ============================================================
+function updateOverviewPanel(organic, temp, ph, status, ts) {
+    const now = ts || new Date().toLocaleTimeString('en-US',{timeZone:'Asia/Manila',hour12:true});
+
+    // Sensor value displays
+    const ovOrg = document.getElementById('ovOrgVal');
+    const ovTmp = document.getElementById('ovTempVal');
+    const ovPH  = document.getElementById('ovPHVal');
+    if(ovOrg){ovOrg.textContent=organic;ovOrg.style.animation='countFlash .6s ease';setTimeout(()=>ovOrg.style.animation='',600);}
+    if(ovTmp) ovTmp.textContent=temp;
+    if(ovPH)  ovPH.textContent=ph;
+
+    // Last updated timestamps
+    ['ovLastTs'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=now;});
+
+    // Sensor bar fills
+    const ovBO=document.getElementById('ovBarOrganic'),ovBT=document.getElementById('ovBarTemp'),ovBP=document.getElementById('ovBarPH');
+    if(ovBO) ovBO.style.width=Math.min(100,organic/0.35)+'%';
+    if(ovBT) ovBT.style.width=Math.min(100,(temp-20)*10)+'%';
+    if(ovBP) ovBP.style.width=Math.min(100,ph*10)+'%';
+
+    // Per-sensor badges
+    function sensorBadge(elId, val, warn, crit, isHigh) {
+        const el=document.getElementById(elId); if(!el) return;
+        const bad  = isHigh ? val>=crit : val<=crit;
+        const warn_ = isHigh ? val>=warn : val<=warn;
+        if(bad)       { el.className='ov-sensor-badge crit'; el.textContent='CRITICAL'; }
+        else if(warn_){ el.className='ov-sensor-badge warn'; el.textContent='WARNING'; }
+        else          { el.className='ov-sensor-badge';      el.textContent='SAFE'; }
+    }
+    sensorBadge('ovOrgBadge',  organic, THR.organic_warn, THR.organic_crit, true);
+    sensorBadge('ovTempBadge', temp,    THR.temp_warn,    THR.temp_crit,    true);
+
+    // pH badge (two-sided threshold)
+    const phBadge=document.getElementById('ovPHBadge');
+    if(phBadge){
+        if(ph<=THR.ph_low_crit||ph>=THR.ph_high_crit)     { phBadge.className='ov-sensor-badge crit'; phBadge.textContent='CRITICAL'; }
+        else if(ph<=THR.ph_low_warn||ph>=THR.ph_high_warn) { phBadge.className='ov-sensor-badge warn'; phBadge.textContent='WARNING'; }
+        else                                               { phBadge.className='ov-sensor-badge';      phBadge.textContent='SAFE'; }
+    }
+
+    // Status banner
+    const banner=document.getElementById('ovBanner');
+    const bannerTitle=document.getElementById('ovBannerTitle');
+    const bannerStatus=document.getElementById('ovBannerStatus');
+    const bannerMsg=document.getElementById('ovBannerMsg');
+    if(banner){
+        banner.className='ov-banner '+status;
+    }
+    if(bannerStatus) bannerStatus.textContent=status.toUpperCase();
+    const msgs={
+        safe:    'All readings are within safe range. No action required.',
+        warning: 'One or more readings are approaching threshold. Monitor closely.',
+        critical:'Critical reading detected! Immediate action may be required.'
+    };
+    if(bannerMsg) bannerMsg.textContent=msgs[status]||msgs.safe;
+
+    // Overview threshold rows (mirror of readings section)
+    updateThreshold('ov-thr-organic','ov-thr-org-val',  organic, THR.organic_warn, THR.organic_crit, 'var(--green)', true);
+    updateThreshold('ov-thr-temp',   'ov-thr-temp-val', temp,    THR.temp_warn,    THR.temp_crit,    'var(--amber)', true);
+    updateThresholdPH('ov-thr-ph',   'ov-thr-ph-val',   ph);
+
+    // Update the displayed value suffixes in overview threshold rows
+    const otv=document.getElementById('ov-thr-org-val');  if(otv && !otv.textContent.includes('mg/L')) otv.textContent=organic+' mg/L';
+    else if(otv) otv.textContent=organic+' mg/L';
+    const ttv=document.getElementById('ov-thr-temp-val'); if(ttv) ttv.textContent=temp+'°C';
+    const ptv=document.getElementById('ov-thr-ph-val');   if(ptv) ptv.textContent=ph;
 }
 
 function updateGauge(id, val, min, max) {
