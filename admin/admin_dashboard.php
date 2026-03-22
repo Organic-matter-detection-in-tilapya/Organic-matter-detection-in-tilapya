@@ -940,6 +940,34 @@ tr:last-child td{border-bottom:none}
 .alert-foot{display:flex;justify-content:space-between;align-items:center}
 .alert-time{font-family:var(--fm);font-size:.62rem;color:var(--muted)}
 
+/* ── ALERTS SECTION ENHANCEMENTS ── */
+/* KPI summary strip above card */
+.alert-kpi-strip{display:grid;grid-template-columns:repeat(5,1fr);gap:.7rem;margin-bottom:1.2rem}
+.alert-kpi{background:var(--bg-card);border:1px solid var(--bdr);border-radius:var(--r-lg);padding:.85rem 1rem;text-align:center;position:relative;overflow:hidden;transition:.3s;cursor:default}
+.alert-kpi:hover{transform:translateY(-2px);border-color:var(--bdr-glow)}
+.alert-kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--akc,var(--cyan)),transparent)}
+.alert-kpi-val{font-family:var(--fm);font-size:1.6rem;font-weight:700;color:var(--akc,var(--cyan));line-height:1;margin-bottom:.2rem}
+.alert-kpi-lbl{font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+/* Toolbar: filter tabs + search */
+.alert-toolbar{display:flex;gap:.6rem;margin-bottom:.8rem;flex-wrap:wrap;align-items:center}
+.alert-filter-tabs{display:flex;gap:.3rem;flex-wrap:wrap;flex:1;min-width:0}
+.alert-ftab{background:var(--bg-elevated);border:1px solid var(--bdr);color:var(--muted);border-radius:6px;padding:.28rem .7rem;font-family:var(--fm);font-size:.66rem;cursor:pointer;transition:.2s;white-space:nowrap;letter-spacing:.3px;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.alert-ftab:hover{border-color:var(--cyan);color:var(--cyan)}
+.alert-ftab.active{background:rgba(0,229,255,.1);border-color:var(--cyan);color:var(--cyan)}
+.alert-ftab-count{background:rgba(0,0,0,.3);border-radius:50px;padding:.05rem .35rem;font-size:.58rem;margin-left:.25rem}
+.alert-search-inp{width:180px;flex-shrink:0}
+/* Alert item enhancements */
+.alert-icon-col{display:flex;flex-direction:column;align-items:center;gap:.3rem;flex-shrink:0;padding-top:.1rem}
+.alert-unread-pip{width:7px;height:7px;border-radius:50%;background:var(--red);animation:blink 1.5s infinite;display:block}
+.alert-header-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:.2rem;gap:.4rem;flex-wrap:wrap}
+.alert-ago{color:var(--muted);font-size:.6rem;font-family:var(--fm)}
+.alert-actions{display:flex;gap:.3rem;align-items:center;flex-wrap:wrap}
+.al-resolved{opacity:.55}
+.al-resolved:hover{opacity:.75}
+/* Alerts responsive */
+@media(max-width:768px){.alert-kpi-strip{grid-template-columns:repeat(3,1fr);gap:.5rem}.alert-kpi{padding:.65rem .5rem}.alert-kpi-val{font-size:1.3rem}.alert-toolbar{flex-direction:column;align-items:stretch}.alert-search-inp{width:100%}.alert-filter-tabs{gap:.25rem}.alert-ftab{font-size:.6rem;padding:.24rem .55rem}}
+@media(max-width:480px){.alert-kpi-strip{grid-template-columns:repeat(2,1fr)}.alert-kpi-strip .alert-kpi:last-child{grid-column:1/-1}}
+
 /* ── REPORT ── */
 .rpt-type-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.7rem;margin-bottom:1rem}
 .rpt-type-btn{background:var(--bg-elevated);border:1px solid var(--bdr);border-radius:var(--r-md);padding:.9rem .6rem;text-align:center;cursor:pointer;transition:.3s;color:var(--txt);-webkit-tap-highlight-color:transparent;touch-action:manipulation}
@@ -1691,30 +1719,141 @@ tr:last-child td{border-bottom:none}
 
 <!-- ════ SECTION: ALERTS ════ -->
 <div class="section-panel" id="sec-alerts">
+
+    <!-- Summary KPI strip -->
+    <div class="alert-kpi-strip">
+        <div class="alert-kpi" id="akpi-total">
+            <div class="alert-kpi-val" id="akpi-total-val"><?php echo count($alerts); ?></div>
+            <div class="alert-kpi-lbl">Total</div>
+        </div>
+        <div class="alert-kpi" id="akpi-unread" style="--akc:var(--red)">
+            <div class="alert-kpi-val" id="akpi-unread-val"><?php echo $new_alerts_count; ?></div>
+            <div class="alert-kpi-lbl">Unread</div>
+        </div>
+        <div class="alert-kpi" id="akpi-critical" style="--akc:var(--red)">
+            <div class="alert-kpi-val" id="akpi-critical-val"><?php echo count(array_filter($alerts,fn($a)=>$a['type']==='critical')); ?></div>
+            <div class="alert-kpi-lbl">Critical</div>
+        </div>
+        <div class="alert-kpi" id="akpi-warning" style="--akc:var(--amber)">
+            <div class="alert-kpi-val" id="akpi-warning-val"><?php echo count(array_filter($alerts,fn($a)=>$a['type']==='warning')); ?></div>
+            <div class="alert-kpi-lbl">Warning</div>
+        </div>
+        <div class="alert-kpi" id="akpi-resolved" style="--akc:var(--green)">
+            <div class="alert-kpi-val" id="akpi-resolved-val"><?php echo count(array_filter($alerts,fn($a)=>$a['status']==='resolved')); ?></div>
+            <div class="alert-kpi-lbl">Resolved</div>
+        </div>
+    </div>
+
     <div class="card">
         <div class="card-head">
             <div class="card-title"><i class="fas fa-bell"></i> Alerts & Notifications</div>
-            <span class="badge badge-unread" id="alertBadge"><?php echo $new_alerts_count; ?> NEW</span>
+            <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+                <span class="badge badge-unread" id="alertBadge"><?php echo $new_alerts_count; ?> NEW</span>
+                <button class="btn btn-success btn-sm" id="btnMarkAll" onclick="markAllRead()" <?php echo $new_alerts_count==0?'disabled':''; ?>>
+                    <i class="fas fa-check-double"></i> Mark All Read
+                </button>
+            </div>
         </div>
+
+        <!-- Filter + Search bar -->
+        <div class="alert-toolbar">
+            <div class="alert-filter-tabs" id="alertFilterTabs">
+                <button class="alert-ftab active" data-filter="all"    onclick="filterAlerts('all',this)">All <span class="alert-ftab-count" id="fc-all"><?php echo count($alerts); ?></span></button>
+                <button class="alert-ftab" data-filter="unread"  onclick="filterAlerts('unread',this)">Unread <span class="alert-ftab-count" id="fc-unread"><?php echo $new_alerts_count; ?></span></button>
+                <button class="alert-ftab" data-filter="critical" onclick="filterAlerts('critical',this)">Critical <span class="alert-ftab-count" id="fc-critical"><?php echo count(array_filter($alerts,fn($a)=>$a['type']==='critical')); ?></span></button>
+                <button class="alert-ftab" data-filter="warning"  onclick="filterAlerts('warning',this)">Warning <span class="alert-ftab-count" id="fc-warning"><?php echo count(array_filter($alerts,fn($a)=>$a['type']==='warning')); ?></span></button>
+                <button class="alert-ftab" data-filter="resolved" onclick="filterAlerts('resolved',this)">Resolved <span class="alert-ftab-count" id="fc-resolved"><?php echo count(array_filter($alerts,fn($a)=>$a['status']==='resolved')); ?></span></button>
+            </div>
+            <input class="inp alert-search-inp" type="text" id="alertSearch" placeholder="Search alerts…" oninput="searchAlerts(this.value)">
+        </div>
+
+        <!-- Alert list -->
         <div id="alertsList">
-            <?php foreach($alerts as $al): ?>
-            <div class="alert-item <?php echo $al['type']; ?>" onclick="gotoMap('<?php echo $al['pond_name']; ?>')">
-                <i class="fas fa-<?php echo $al['type']=='critical'?'exclamation-circle':'exclamation-triangle'; ?> alert-icon <?php echo $al['type']; ?>"></i>
-                <div style="flex:1">
-                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.12rem"><div class="alert-pond">Pond <?php echo htmlspecialchars($al['pond_name']); ?></div><div class="alert-time"><?php echo date('h:i A',strtotime($al['created_at'])); ?></div></div>
-                    <div class="alert-msg"><?php echo htmlspecialchars($al['message']); ?></div>
-                    <div class="alert-foot">
-                        <span class="badge badge-<?php echo $al['status']; ?>"><?php echo strtoupper($al['status']); ?></span>
-                        <?php if($al['status']=='unread'): ?>
-                        <div style="display:flex;gap:.3rem">
-                            <button class="btn btn-success btn-sm" onclick="event.stopPropagation();ackAlert(<?php echo $al['notification_id']; ?>)">ACK</button>
-                            <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();resolveAlert(<?php echo $al['notification_id']; ?>)">RESOLVE</button>
+            <?php foreach($alerts as $al):
+                $icon = $al['type']==='critical' ? 'exclamation-circle' : ($al['type']==='warning' ? 'exclamation-triangle' : 'info-circle');
+                $is_unread = $al['status']==='unread';
+                $is_resolved = $al['status']==='resolved';
+            ?>
+            <div class="alert-item <?php echo $al['type']; ?> <?php echo $is_resolved?'al-resolved':''; ?>"
+                 id="alert-<?php echo $al['notification_id']; ?>"
+                 data-type="<?php echo $al['type']; ?>"
+                 data-status="<?php echo $al['status']; ?>"
+                 data-pond="<?php echo htmlspecialchars($al['pond_name']); ?>"
+                 data-msg="<?php echo strtolower(htmlspecialchars($al['message'])); ?>"
+                 onclick="alertItemClick(event,'<?php echo $al['pond_name']; ?>')">
+
+                <!-- Left icon column -->
+                <div class="alert-icon-col">
+                    <i class="fas fa-<?php echo $icon; ?> alert-icon <?php echo $al['type']; ?>"></i>
+                    <?php if($is_unread): ?>
+                    <span class="alert-unread-pip"></span>
+                    <?php endif; ?>
+                </div>
+
+                <!-- Main content -->
+                <div style="flex:1;min-width:0">
+                    <div class="alert-header-row">
+                        <div class="alert-pond">
+                            <i class="fas fa-water" style="font-size:.65rem;opacity:.6"></i>
+                            Pond <?php echo htmlspecialchars($al['pond_name']); ?>
                         </div>
-                        <?php endif; ?>
+                        <div class="alert-time">
+                            <i class="far fa-clock" style="font-size:.6rem"></i>
+                            <?php echo date('h:i A', strtotime($al['created_at'])); ?>
+                            <span class="alert-ago" data-ts="<?php echo strtotime($al['created_at']); ?>"></span>
+                        </div>
+                    </div>
+
+                    <div class="alert-msg"><?php echo htmlspecialchars($al['message']); ?></div>
+
+                    <div class="alert-foot">
+                        <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap">
+                            <span class="badge badge-<?php echo $al['type']; ?>"><?php echo strtoupper($al['type']); ?></span>
+                            <span class="badge badge-<?php echo $al['status']; ?>" id="status-badge-<?php echo $al['notification_id']; ?>"><?php echo strtoupper($al['status']); ?></span>
+                        </div>
+                        <div class="alert-actions" id="actions-<?php echo $al['notification_id']; ?>">
+                            <?php if(!$is_resolved): ?>
+                            <button class="btn btn-ghost btn-sm"
+                                    onclick="event.stopPropagation();gotoMap('<?php echo $al['pond_name']; ?>')"
+                                    title="View on map">
+                                <i class="fas fa-map-marker-alt" style="color:var(--cyan)"></i>
+                            </button>
+                            <?php if($is_unread): ?>
+                            <button class="btn btn-success btn-sm"
+                                    id="btn-ack-<?php echo $al['notification_id']; ?>"
+                                    onclick="event.stopPropagation();ackAlert(<?php echo $al['notification_id']; ?>,this)">
+                                <i class="fas fa-check"></i> ACK
+                            </button>
+                            <?php endif; ?>
+                            <button class="btn btn-primary btn-sm"
+                                    id="btn-resolve-<?php echo $al['notification_id']; ?>"
+                                    onclick="event.stopPropagation();resolveAlert(<?php echo $al['notification_id']; ?>,this)">
+                                <i class="fas fa-check-double"></i> Resolve
+                            </button>
+                            <?php else: ?>
+                            <span style="font-family:var(--fm);font-size:.65rem;color:var(--green)">
+                                <i class="fas fa-check-circle"></i> Resolved
+                            </span>
+                            <?php endif; ?>
+                        </div>
                     </div>
                 </div>
             </div>
-            <?php endforeach; if(empty($alerts)): ?><div style="text-align:center;padding:2rem;color:var(--muted)"><i class="fas fa-check-circle" style="color:var(--green);font-size:2rem;display:block;margin-bottom:.5rem"></i>No alerts</div><?php endif; ?>
+            <?php endforeach; ?>
+
+            <!-- Empty state (hidden by default, shown by JS filter) -->
+            <div id="alertEmptyState" style="display:none;text-align:center;padding:2.5rem 1rem;color:var(--muted)">
+                <i class="fas fa-check-circle" style="color:var(--green);font-size:2.5rem;display:block;margin-bottom:.75rem;opacity:.7"></i>
+                <div style="font-size:.9rem;font-weight:600;margin-bottom:.3rem">No alerts found</div>
+                <div style="font-size:.75rem">Try a different filter or search term</div>
+            </div>
+
+            <?php if(empty($alerts)): ?>
+            <div style="text-align:center;padding:2.5rem 1rem;color:var(--muted)">
+                <i class="fas fa-check-circle" style="color:var(--green);font-size:2.5rem;display:block;margin-bottom:.75rem"></i>
+                <div style="font-size:.9rem;font-weight:600">All clear — no alerts</div>
+            </div>
+            <?php endif; ?>
         </div>
     </div>
 </div>
@@ -2286,11 +2425,22 @@ function initMap() {
     }
     if (map) return; // Already inited
 
-    map = L.map('map', { zoomControl:true }).setView([8.3694, 124.8652], 17);
+    // ── MAP INIT — all zoom interactions disabled (static display mode) ──
+    map = L.map('map', {
+        zoomControl:        false,  // hide +/- buttons
+        scrollWheelZoom:    false,  // disable mouse wheel zoom
+        doubleClickZoom:    false,  // disable double-click zoom
+        touchZoom:          false,  // disable pinch zoom on mobile
+        boxZoom:            false,  // disable shift+drag box zoom
+        keyboard:           false,  // disable keyboard zoom (+/-)
+        dragging:           true,   // allow pan (restricted by maxBounds below)
+    }).setView([8.3694, 124.8652], 17);
+
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         attribution:'&copy; OpenStreetMap &copy; CARTO', subdomains:'abcd', maxZoom:20
     }).addTo(map);
 
+    // Draw all pond polygons
     Object.keys(POND_COORDS).forEach(key => {
         const cfg  = POND_COORDS[key];
         const pond = PONDS[key];
@@ -2318,8 +2468,26 @@ function initMap() {
         L.marker(cfg.center, { icon:lIcon, interactive:false }).addTo(map);
     });
 
+    // ── BOUNDING BOX — compute tight bounds from all 3 polygons ──
     const fg = L.featureGroup(Object.values(polygons));
-    if (fg.getBounds().isValid()) map.fitBounds(fg.getBounds().pad(0.25));
+    if (fg.getBounds().isValid()) {
+        const bounds = fg.getBounds();
+
+        // Fit map tightly to all ponds — small pad so labels aren't clipped
+        map.fitBounds(bounds.pad(0.08));
+
+        // Lock panning — user cannot drag beyond the pond area
+        // Slightly wider pad than fitBounds so the edge feels natural, not hard-cut
+        map.setMaxBounds(bounds.pad(0.18));
+
+        // Prevent zoom from ever changing (lock current zoom level as min+max)
+        map.once('moveend', () => {
+            const lockedZoom = map.getZoom();
+            map.setMinZoom(lockedZoom);
+            map.setMaxZoom(lockedZoom);
+        });
+    }
+
     map.invalidateSize();
 }
 
@@ -2343,10 +2511,13 @@ function focusPond(key) {
     const cfg = POND_COORDS[key];
     if (!cfg) return;
     if (polygons[key]) {
-        map.setView(cfg.center, 19);
+        // Pan to pond center only — zoom is locked, do NOT call setView with zoom level
+        map.panTo(cfg.center, { animate:true, duration:0.5 });
         polygons[key].openPopup();
         polygons[key].setStyle({ fillOpacity:0.65 });
-        setTimeout(() => { if(polygons[key]) polygons[key].setStyle({ fillOpacity:PONDS[key]?.status==='critical'?0.35:0.25 }); }, 1200);
+        setTimeout(() => {
+            if (polygons[key]) polygons[key].setStyle({ fillOpacity:PONDS[key]?.status==='critical'?0.35:0.25 });
+        }, 1200);
     }
     toast(`Focused: ${cfg.name}`, 'info');
 }
@@ -2461,14 +2632,279 @@ function switchPeriod(period, btn) {
 }
 
 // ═══════════════════════════════════════════════
-// ALERT ACTIONS — ackAlert(), resolveAlert()
+// ALERT ACTIONS — fully DOM-based, no page reload
 // ═══════════════════════════════════════════════
-// ackAlert(id)     → POSTs acknowledge_alert. Sets notification status='read'.
-//                    Shows success toast, reloads page after 600ms to reflect change.
-// resolveAlert(id) → POSTs resolve_alert. Sets notification status='resolved'.
-//                    Same reload behavior as ackAlert.
-function ackAlert(id){ fetchPost('acknowledge_alert',`alert_id=${id}`).then(d=>{toast(d.message,'success');setTimeout(()=>location.reload(),600);}); }
-function resolveAlert(id){ fetchPost('resolve_alert',`alert_id=${id}`).then(d=>{toast(d.message,'success');setTimeout(()=>location.reload(),600);}); }
+
+// ── ackAlert(id, btn) ──────────────────────────
+// Acknowledges an alert (status = 'read') without reloading the page.
+// Steps:
+//   1. Shows spinner on button, disables it
+//   2. POSTs acknowledge_alert to PHP
+//   3. On success:
+//      - Removes .al-unread-pip dot from the alert row
+//      - Removes the ACK button (already acknowledged)
+//      - Updates the status badge text from UNREAD → READ
+//      - Updates alert-item data-status attribute for filter to work
+//      - Decrements the unread counter everywhere (badge, kpi strip, filter tabs)
+//      - Shows success toast
+//   4. On error: restores button, shows error toast
+function ackAlert(id, btn) {
+    const orig = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    btn.disabled = true;
+
+    fetchPost('acknowledge_alert', `alert_id=${id}`)
+    .then(d => {
+        if (!d.success) {
+            btn.innerHTML = orig;
+            btn.disabled = false;
+            toast(d.message || 'Failed to acknowledge', 'critical');
+            return;
+        }
+        // Update the alert row DOM — no reload needed
+        const row = document.getElementById('alert-' + id);
+        if (row) {
+            // Remove unread pip dot
+            const pip = row.querySelector('.alert-unread-pip');
+            if (pip) pip.remove();
+            // Update status badge
+            const sb = document.getElementById('status-badge-' + id);
+            if (sb) { sb.className = 'badge badge-read'; sb.textContent = 'READ'; }
+            // Remove ack button (no longer needed)
+            btn.remove();
+            // Update data-status so filter continues to work
+            row.dataset.status = 'read';
+        }
+        // Decrement unread counts
+        _updateAlertCounts();
+        toast('Alert acknowledged', 'success');
+    })
+    .catch(() => { btn.innerHTML = orig; btn.disabled = false; toast('Network error', 'critical'); });
+}
+
+// ── resolveAlert(id, btn) ──────────────────────
+// Resolves an alert (status = 'resolved') without reloading the page.
+// Steps:
+//   1. Confirm dialog before resolving
+//   2. Shows spinner, disables button
+//   3. POSTs resolve_alert to PHP
+//   4. On success:
+//      - Fades the alert row slightly (resolved = dimmed)
+//      - Replaces the action buttons with a "Resolved" text badge
+//      - Updates status badge to RESOLVED (green)
+//      - Adds .al-resolved class to the row
+//      - Updates data-status for filter
+//      - Updates all counters
+//      - Shows success toast
+function resolveAlert(id, btn) {
+    confirm_('Resolve Alert', 'Mark this alert as resolved?', '✅', () => {
+        const orig = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        btn.disabled = true;
+
+        fetchPost('resolve_alert', `alert_id=${id}`)
+        .then(d => {
+            if (!d.success) {
+                btn.innerHTML = orig;
+                btn.disabled = false;
+                toast(d.message || 'Failed to resolve', 'critical');
+                return;
+            }
+            const row = document.getElementById('alert-' + id);
+            if (row) {
+                // Dim the row
+                row.classList.add('al-resolved');
+                row.dataset.status = 'resolved';
+                // Remove unread pip if present
+                const pip = row.querySelector('.alert-unread-pip');
+                if (pip) pip.remove();
+                // Update status badge
+                const sb = document.getElementById('status-badge-' + id);
+                if (sb) { sb.className = 'badge badge-resolved'; sb.textContent = 'RESOLVED'; }
+                // Replace action buttons with resolved label
+                const actions = document.getElementById('actions-' + id);
+                if (actions) {
+                    actions.innerHTML = '<span style="font-family:var(--fm);font-size:.65rem;color:var(--green)"><i class="fas fa-check-circle"></i> Resolved</span>';
+                }
+            }
+            _updateAlertCounts();
+            toast('Alert resolved', 'success');
+        })
+        .catch(() => { btn.innerHTML = orig; btn.disabled = false; toast('Network error', 'critical'); });
+    });
+}
+
+// ── markAllRead() ──────────────────────────────
+// Acknowledges ALL currently unread alerts in one batch.
+// Loops through every alert row with data-status="unread" and calls ackAlert()
+// with a small delay between each to avoid hammering the server.
+// Disables the "Mark All Read" button while processing.
+function markAllRead() {
+    const unreadRows = Array.from(document.querySelectorAll('#alertsList .alert-item[data-status="unread"]'));
+    if (!unreadRows.length) { toast('No unread alerts', 'info'); return; }
+
+    const btn = document.getElementById('btnMarkAll');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing…'; }
+
+    let delay = 0;
+    unreadRows.forEach(row => {
+        const id  = row.id.replace('alert-', '');
+        const ackBtn = document.getElementById('btn-ack-' + id);
+        setTimeout(() => {
+            // Directly POST without spinner (batch mode)
+            fetchPost('acknowledge_alert', `alert_id=${id}`)
+            .then(d => {
+                if (!d.success) return;
+                const pip = row.querySelector('.alert-unread-pip');
+                if (pip) pip.remove();
+                const sb = document.getElementById('status-badge-' + id);
+                if (sb) { sb.className = 'badge badge-read'; sb.textContent = 'READ'; }
+                if (ackBtn) ackBtn.remove();
+                row.dataset.status = 'read';
+                _updateAlertCounts();
+            });
+        }, delay);
+        delay += 80; // stagger requests 80ms apart
+    });
+
+    setTimeout(() => {
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-check-double"></i> Mark All Read'; }
+        toast(`${unreadRows.length} alert(s) marked as read`, 'success');
+    }, delay + 200);
+}
+
+// ── filterAlerts(filter, btn) ──────────────────
+// Filters alert rows by type/status without touching the server.
+// filter values: 'all' | 'unread' | 'critical' | 'warning' | 'resolved'
+// Shows/hides .alert-item rows based on their data-type and data-status.
+// Also handles the empty state message visibility.
+// Syncs filter tab active state.
+let _currentFilter = 'all';
+let _currentSearch = '';
+
+function filterAlerts(filter, btn) {
+    _currentFilter = filter;
+    // Update active tab
+    document.querySelectorAll('.alert-ftab').forEach(t => t.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    _applyAlertFilter();
+}
+
+function searchAlerts(query) {
+    _currentSearch = query.toLowerCase().trim();
+    _applyAlertFilter();
+}
+
+function _applyAlertFilter() {
+    const rows  = document.querySelectorAll('#alertsList .alert-item');
+    let visible = 0;
+    rows.forEach(row => {
+        const type   = row.dataset.type   || '';
+        const status = row.dataset.status || '';
+        const msg    = row.dataset.msg    || '';
+        const pond   = row.dataset.pond   || '';
+
+        // Type/status match
+        let typeMatch = false;
+        switch (_currentFilter) {
+            case 'all':      typeMatch = true; break;
+            case 'unread':   typeMatch = status === 'unread'; break;
+            case 'critical': typeMatch = type   === 'critical'; break;
+            case 'warning':  typeMatch = type   === 'warning'; break;
+            case 'resolved': typeMatch = status === 'resolved'; break;
+        }
+
+        // Search match
+        const searchMatch = !_currentSearch ||
+            msg.includes(_currentSearch) ||
+            pond.toLowerCase().includes(_currentSearch);
+
+        const show = typeMatch && searchMatch;
+        row.style.display = show ? '' : 'none';
+        if (show) visible++;
+    });
+
+    // Show empty state if nothing matches
+    const empty = document.getElementById('alertEmptyState');
+    if (empty) empty.style.display = visible === 0 ? 'block' : 'none';
+}
+
+// ── _updateAlertCounts() ───────────────────────
+// Recomputes all alert counter elements from the current DOM state.
+// Called after every ack/resolve action.
+// Updates: alert badge (topnav + sidebar), KPI strip values,
+//          filter tab counts, and Mark All Read button disabled state.
+// Does NOT require a server call — counts DOM elements directly.
+function _updateAlertCounts() {
+    const rows     = Array.from(document.querySelectorAll('#alertsList .alert-item'));
+    const total    = rows.length;
+    const unread   = rows.filter(r => r.dataset.status  === 'unread').length;
+    const critical = rows.filter(r => r.dataset.type    === 'critical').length;
+    const warning  = rows.filter(r => r.dataset.type    === 'warning').length;
+    const resolved = rows.filter(r => r.dataset.status  === 'resolved').length;
+
+    // Alert badge in card header + sidebar
+    const badge = document.getElementById('alertBadge');
+    if (badge) badge.textContent = unread + ' NEW';
+
+    // Sidebar badge
+    const sb = document.getElementById('sideAlerts');
+    if (sb) sb.textContent = unread > 0 ? unread : '';
+
+    // Bottom nav badge
+    document.querySelectorAll('#bn-alerts .bnav-badge').forEach(b => {
+        b.textContent = unread > 0 ? unread : '';
+        b.style.display = unread > 0 ? '' : 'none';
+    });
+
+    // KPI strip
+    const _kpi = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    _kpi('akpi-total-val',    total);
+    _kpi('akpi-unread-val',   unread);
+    _kpi('akpi-critical-val', critical);
+    _kpi('akpi-warning-val',  warning);
+    _kpi('akpi-resolved-val', resolved);
+
+    // Filter tab counts
+    _kpi('fc-all',      total);
+    _kpi('fc-unread',   unread);
+    _kpi('fc-critical', critical);
+    _kpi('fc-warning',  warning);
+    _kpi('fc-resolved', resolved);
+
+    // Mark All Read button
+    const marAllBtn = document.getElementById('btnMarkAll');
+    if (marAllBtn) marAllBtn.disabled = unread === 0;
+}
+
+// ── alertItemClick(e, pondName) ────────────────
+// Handles click on the alert row itself (not on buttons inside it).
+// Navigates to the map section and focuses the relevant pond.
+// Ignores clicks that originated from a button inside the row.
+function alertItemClick(e, pondName) {
+    if (e.target.closest('.btn')) return; // button click — don't navigate
+    gotoMap(pondName);
+}
+
+// ── Relative time updater ──────────────────────
+// Updates the "X min ago" relative timestamps in alert rows every 30 seconds.
+// Finds all elements with data-ts attribute and computes elapsed time.
+(function initAlertRelativeTimes() {
+    function updateTimes() {
+        const now = Math.floor(Date.now() / 1000);
+        document.querySelectorAll('.alert-ago[data-ts]').forEach(el => {
+            const diff = now - parseInt(el.dataset.ts || 0);
+            let label = '';
+            if      (diff < 60)      label = 'just now';
+            else if (diff < 3600)    label = `· ${Math.floor(diff/60)}m ago`;
+            else if (diff < 86400)   label = `· ${Math.floor(diff/3600)}h ago`;
+            else                     label = `· ${Math.floor(diff/86400)}d ago`;
+            el.textContent = label;
+        });
+    }
+    updateTimes();
+    setInterval(updateTimes, 30000);
+})();
 
 // ═══════════════════════════════════════════════
 // USER MANAGEMENT
