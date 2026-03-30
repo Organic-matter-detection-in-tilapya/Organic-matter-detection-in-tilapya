@@ -95,7 +95,7 @@ All ponds are located in **Manolo Fortich, Bukidnon, Philippines** (approx. 8.36
 
 ---
 
-## ⚠️ Alert Thresholds
+## ⚠️ Alert Threshold
 
 | Level | Color | Trigger Condition |
 |---|---|---|
