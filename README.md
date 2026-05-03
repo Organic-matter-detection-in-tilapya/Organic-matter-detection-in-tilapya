@@ -99,7 +99,7 @@ All ponds are located in **Manolo Fortich, Bukidnon, Philippines** (approx. 8.36
 
 | Level | Color | Trigger Condition |
 |---|---|---|
-| 🔴 **Critical** | Red | Organic > 80% OR Temperature > 32°C OR pH > 8.5 |
+| 🔴 **Critical** ..| Red | Organic > 80% OR Temperature > 32°C OR pH > 8.5 |
 | 🟡 **Warning** | Amber | Organic > 60% OR Temperature > 30°C OR pH > 7.8 |
 | 🟢 **Safe** | Green | All values below warning thresholds |
 
