@@ -1,17 +1,5 @@
 <?php
-/**
- * ============================================================
- *  Organic Matter Detection in Tilapia
- *  Manager Dashboard — v2.0
- * ============================================================
- *  Location : Manolo Fortich, Bukidnon, Philippines
- *  Timezone : Asia/Manila (PHT, UTC+8)
- *  Role     : Manager
- *
- *  MOBILE FIX: Logout button visible in topnav on mobile.
- *  Bottom nav has 5 tabs. Logout accessible everywhere.
- * ============================================================
- */
+
 session_start();
 require_once '../config/config.php';
 error_reporting(E_ALL & ~E_DEPRECATED & ~E_WARNING);

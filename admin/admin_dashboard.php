@@ -1,96 +1,25 @@
 <?php
-/**
- * ============================================================
- *  Organic Matter Detection in Tilapia
- *  Admin Dashboard — v2.0
- * ============================================================
- *
- *  @project   Organic Matter Detection in Tilapia Ponds
- *  @location  Manolo Fortich, Bukidnon, Philippines
- *  @timezone  Asia/Manila (PHT, UTC+8)
- *  @stack     PHP 8+ · PDO MySQL · Leaflet.js · Chart.js
- *  @author    AquaSystem Dev Team
- *
- *  DASHBOARD SECTIONS:
- *  ┌─────────────────────────────────────────────────┐
- *  │ Overview     — KPIs, staff cards, pond status   │
- *  │ Users        — CRUD: add/edit/delete/bulk       │
- *  │ Ponds        — Per-pond metrics + IoT refresh   │
- *  │ Map          — Leaflet polygon map, live status │
- *  │ Charts       — Daily/weekly/monthly trends      │
- *  │ Alerts       — Notifications with ACK/RESOLVE   │
- *  │ Reports      — Generate + export reports        │
- *  │ Activities   — Unified activity log             │
- *  │ IOT Panel    — Per-pond history charts + stats  │
- *  │ Settings     — Prefs, session, display, about  │
- *  └─────────────────────────────────────────────────┘
- *
- *  ALERT THRESHOLDS:
- *    Critical : Organic > 80%  | Temp > 32°C | pH > 8.5
- *    Warning  : Organic > 60%  | Temp > 30°C | pH > 7.8
- *    Safe     : Below all warning thresholds
- *
- *  USER STATUS LOGIC:
- *    Active   : last_login within the past 7 days
- *    Inactive : last_login older than 7 days or NULL
- *    Deactivate sets last_login = 10 years ago (workaround)
- *
- *  MOBILE Z-INDEX HIERARCHY (never change order):
- *    .layout          → no z-index (prevents stacking context)
- *    .main            → no z-index
- *    .sidebar         → 700
- *    .sidebar-overlay → 600
- *    .topnav          → 200
- *    .bottom-nav      → 9999  ← must always be highest tappable
- *    .modal           → 10000
- *    .toast-wrap      → 10001
- *
- *  AJAX ACTIONS (POST action=):
- *    get_users, add_user, edit_user, delete_user,
- *    activate_user, deactivate_user, get_user,
- *    get_chart_data, acknowledge_alert, resolve_alert,
- *    generate_report, bulk_action, get_iot_reading,
- *    get_pond_history, get_system_stats,
- *    save_settings, get_settings, logout
- * ============================================================
- */
-
-// ── START SESSION & LOAD CONFIG ────────────────────────────
-// session_start() must be called before any output.
-// config.php provides the $pdo PDO database connection.
 session_start();
 require_once '../config/config.php';
 
-// Suppress deprecated/warning notices in production.
-// Remove E_ALL suppression if you need full debug output.
 error_reporting(E_ALL & ~E_DEPRECATED & ~E_WARNING);
 ini_set('display_errors', 1);
 
-// All timestamps displayed to user use Philippines Time (UTC+8)
 date_default_timezone_set('Asia/Manila');
 
-// ── AUTHENTICATION GUARD ───────────────────────────────────
-// Only users with role = 'admin' can access this page.
-// Anyone else (including logged-out users) is redirected to login.
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'admin') {
     header('Location: ../auth/login.php');
     exit;
 }
 
-// ── PAGE VARIABLES ────────────────────────────────────────
-// These are passed to PHP templates and JavaScript constants below.
-$admin_id          = $_SESSION['user_id'];    // Logged-in admin's user ID
-$admin_name        = $_SESSION['full_name'];  // Used in sidebar avatar and footer
-$current_time_12hr = date('h:i:s A');         // Display clock (12-hour + AM/PM)
-$current_date      = date('F j, Y');          // e.g. "March 20, 2026"
-$current_day       = date('l');               // e.g. "Friday"
-$message           = '';                      // Flash message text
-$message_type      = '';                      // 'success' or 'error'
+$admin_id          = $_SESSION['user_id'];
+$admin_name        = $_SESSION['full_name'];
+$current_time_12hr = date('h:i:s A');
+$current_date      = date('F j, Y');
+$current_day       = date('l');
+$message           = '';
+$message_type      = '';
 
-// ── DELETE USER (GET) ─────────────────────────────────────
-// Handles deletion via URL parameter: ?delete_user=ID
-// Admin cannot delete their own account (prevents lockout).
-// After deletion, $message and $message_type are set for display.
 if (isset($_GET['delete_user'])) {
     $uid = intval($_GET['delete_user']);
     if ($uid == $admin_id) {
@@ -110,11 +39,6 @@ if (isset($_GET['delete_user'])) {
     }
 }
 
-// ── BULK ACTIONS (POST form) ──────────────────────────────
-// Handles the bulk action form submitted from the Users table.
-// Supported actions: delete_selected, activate_selected, deactivate_selected.
-// The admin's own user_id is excluded from all bulk operations.
-// Deactivating sets last_login to 10 years ago (marks as inactive).
 if (isset($_POST['bulk_action']) && isset($_POST['selected_users'])) {
     $action       = $_POST['bulk_action'];
     $sel          = array_diff(array_map('intval', $_POST['selected_users']), [$admin_id]);
@@ -135,11 +59,6 @@ if (isset($_POST['bulk_action']) && isset($_POST['selected_users'])) {
     }
 }
 
-// ── FETCH USERS ───────────────────────────────────────────
-// Loads all users from DB, ordered by role (admin > manager > staff)
-// then by name alphabetically.
-// Status is computed: 'active' if last_login within 7 days, else 'inactive'.
-// The $users array is used both in the HTML table and in AJAX JSON responses.
 $users_stmt = $pdo->query("SELECT user_id, full_name, email, role, assigned_pond, created_at, last_login
                             FROM users
                             ORDER BY CASE role WHEN 'admin' THEN 1 WHEN 'manager' THEN 2 WHEN 'staff' THEN 3 END, full_name ASC");
@@ -154,14 +73,6 @@ while ($row = $users_stmt->fetch()) {
     $users[] = $row;
 }
 
-// ── PONDS CONFIG ──────────────────────────────────────────
-// Static config array for the 3 tilapia ponds in Manolo Fortich.
-// 'name'   → Display name shown in UI cards and map labels
-// 'center' → [lat, lng] used to pan the Leaflet map
-// 'staff'  → Default staff name (overridden by DB lookup below)
-// 'bounds' → Array of [lat, lng] coordinates defining the polygon shape
-//            The first and last coordinate must be identical to close the polygon.
-// These coordinates are for Manolo Fortich, Bukidnon (approx. 8.369°N, 124.865°E)
 $ponds_config = [
     'A-1' => ['name'=>'Tilapia Pond A-1','center'=>[8.3695,124.8645],'staff'=>'Pedro Reyes',
               'bounds'=>[[8.3692,124.8642],[8.3698,124.8640],[8.3700,124.8648],[8.3696,124.8650],[8.3692,124.8642]]],
@@ -171,16 +82,6 @@ $ponds_config = [
               'bounds'=>[[8.3697,124.8657],[8.3703,124.8655],[8.3705,124.8663],[8.3699,124.8665],[8.3697,124.8657]]],
 ];
 
-// ── FETCH PONDS FROM DATABASE ─────────────────────────────
-// Merges the static $ponds_config above with live data from the DB.
-// For each pond:
-//   1. Looks up the pond_id from the 'ponds' table
-//   2. Fetches the most recent detection reading (organic, temp, pH)
-//   3. Looks up the assigned staff member from the 'users' table
-//   4. Falls back to rand() values if no DB readings exist yet
-//   5. Computes status: 'critical', 'warning', or 'safe'
-//      based on the threshold constants defined in the file header.
-// Result stored in $ponds_data — used in HTML cards and JSON for JavaScript.
 $ponds_stmt = $pdo->query("SELECT pond_id, pond_name, location FROM ponds ORDER BY pond_name");
 $ponds_db = [];
 while ($row = $ponds_stmt->fetch()) $ponds_db[$row['pond_name']] = $row;
@@ -214,11 +115,6 @@ foreach ($ponds_config as $key => $cfg) {
     ];
 }
 
-// ── ALERTS / NOTIFICATIONS ────────────────────────────────
-// Fetches the 20 most recent notifications from the DB, joined with pond names.
-// If no DB records exist, falls back to 3 sample alerts for UI preview.
-// 'type' field is derived from 'status': critical → 'critical', warning → 'warning', else 'info'.
-// $new_alerts_count drives the badge numbers on the sidebar and bottom nav.
 $alerts_stmt = $pdo->query("SELECT n.*, p.pond_name FROM notifications n LEFT JOIN ponds p ON n.pond_id = p.pond_id ORDER BY n.created_at DESC LIMIT 20");
 $alerts = [];
 if ($alerts_stmt && $alerts_stmt->rowCount() > 0) {
@@ -235,14 +131,6 @@ if ($alerts_stmt && $alerts_stmt->rowCount() > 0) {
 }
 $new_alerts_count = count(array_filter($alerts, fn($a) => ($a['status'] ?? '') == 'unread'));
 
-// ── RECENT ACTIVITIES ─────────────────────────────────────
-// Builds a unified activity feed by combining 3 data sources via UNION ALL:
-//   1. User logins  (from users.last_login)
-//   2. New readings (from detections + ponds join)
-//   3. Alert events (from notifications)
-// Results are sorted by timestamp DESC and limited to 10 entries.
-// Wrapped in try/catch — gracefully falls back to 3 sample entries
-// if the tables don't exist yet (fresh install).
 $recent_activities = [];
 try {
     $aq = "(SELECT CONCAT('User ',full_name,' logged in') AS action, last_login AS timestamp,'login' AS type FROM users WHERE last_login IS NOT NULL ORDER BY last_login DESC LIMIT 5)
@@ -262,12 +150,6 @@ if (empty($recent_activities)) {
     ];
 }
 
-// ── CHART DATA ────────────────────────────────────────────
-// Prepares data arrays for the Chart.js line chart (Metrics Trends section).
-// Three periods are pre-computed: daily (last 24h), weekly (7 days), monthly (30 days).
-// Daily: real data from DB grouped by hour. Falls back to random values if empty.
-// Weekly/Monthly: always uses random values for demo purposes.
-// These arrays are passed to JavaScript as JSON via json_encode($chart_data).
 $chart_data = ['daily'=>['labels'=>[],'organic'=>[],'temperature'=>[],'ph'=>[]]];
 try {
     $dq = "SELECT DATE_FORMAT(detected_at,'%H:00') AS hour, AVG(organic_level) AS ao, AVG(water_temperature) AS at2, AVG(ph_level) AS ap
@@ -295,13 +177,6 @@ $days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 for ($i=0;$i<7;$i++) { $chart_data['weekly']['labels'][]=$days[$i]; $chart_data['weekly']['organic'][]=rand(45,85); $chart_data['weekly']['temperature'][]=rand(25,33); $chart_data['weekly']['ph'][]=rand(65,85)/10; }
 for ($i=1;$i<=30;$i++) { $chart_data['monthly']['labels'][]='Day '.$i; $chart_data['monthly']['organic'][]=rand(45,85); $chart_data['monthly']['temperature'][]=rand(25,33); $chart_data['monthly']['ph'][]=rand(65,85)/10; }
 
-// ── REPORT SUMMARIES ──────────────────────────────────────
-// Pre-builds three report objects used by the Reports section.
-// $daily_report  → today's stats using live $ponds_data values
-// $weekly_report → adds small random variance to simulate trend variation
-// $monthly_report → same approach, wider variance range
-// These are referenced in the AJAX 'generate_report' handler below
-// using variable variables: ${$type.'_report'} (e.g. $daily_report)
 $total_ponds    = count($ponds_data);
 $safe_ponds     = count(array_filter($ponds_data, fn($p)=>$p['status']=='safe'));
 $warning_ponds  = count(array_filter($ponds_data, fn($p)=>$p['status']=='warning'));
@@ -313,31 +188,6 @@ $daily_report   = ['date'=>date('Y-m-d'),'total_ponds'=>$total_ponds,'safe_ponds
 $weekly_report  = ['week'=>date('M d',strtotime('-7 days')).' - '.date('M d, Y'),'total_readings'=>rand(350,450),'avg_organic'=>round($avg_organic+rand(-5,5),1),'avg_temp'=>round($avg_temp+rand(-1,1),1),'avg_ph'=>round(max(6.5,min(8.5,$avg_ph+(rand(-20,20)/100))),1),'incidents'=>rand(3,8),'resolved'=>rand(2,7)];
 $monthly_report = ['month'=>date('F Y'),'total_readings'=>rand(1500,2000),'avg_organic'=>round($avg_organic+rand(-3,3),1),'avg_temp'=>round($avg_temp+rand(-1,1),1),'avg_ph'=>round(max(6.5,min(8.5,$avg_ph+(rand(-10,10)/100))),1),'incidents'=>rand(15,25),'resolved'=>rand(12,22)];
 
-// ── AJAX REQUEST HANDLERS ─────────────────────────────────
-// All AJAX requests POST to this same file with action= parameter.
-// Response is always JSON with at minimum: { success: bool, message: string }
-// The switch handles each action independently and exits immediately after.
-// This block must appear BEFORE any HTML output to allow header() calls.
-//
-// Action reference:
-//   get_users         → Returns full $users array as JSON
-//   add_user          → Inserts new user; validates email uniqueness
-//   edit_user         → Updates user fields; skips password (use separate flow)
-//   delete_user       → Hard deletes user; blocked if user = admin
-//   activate_user     → Sets last_login = NOW() to mark active
-//   deactivate_user   → Sets last_login = 10 years ago to mark inactive
-//   get_user          → Returns single user record by user_id
-//   get_chart_data    → Returns chart labels/values for given period
-//   acknowledge_alert → Sets notification status = 'read'
-//   resolve_alert     → Sets notification status = 'resolved'
-//   generate_report   → Returns pre-built daily/weekly/monthly report object
-//   bulk_action       → Performs delete/activate/deactivate on multiple users
-//   get_iot_reading   → Simulates a live sensor reading for one pond
-//   get_pond_history  → Returns last 10 readings for IOT Panel mini-chart
-//   get_system_stats  → Returns PHP version, memory usage, DB counts
-//   save_settings     → Saves notification prefs to $_SESSION
-//   get_settings      → Returns current session settings
-//   logout            → Destroys session and returns success
 if (isset($_POST['action'])) {
     header('Content-Type: application/json');
     switch ($_POST['action']) {
@@ -388,29 +238,16 @@ if (isset($_POST['action'])) {
             elseif ($bt=='deactivate'){$old=date('Y-m-d H:i:s',strtotime('-10 years')); $stmt=$pdo->prepare("UPDATE users SET last_login=? WHERE user_id IN ($ph)"); echo json_encode(['success'=>$stmt->execute(array_merge([$old],$uids)),'message'=>'Bulk deactivate done']);}
             else echo json_encode(['success'=>false,'message'=>'Invalid action']); exit;
         case 'get_iot_reading':
-            // Simulates a live IoT sensor reading for a single pond.
-            // Values are randomly generated within realistic ranges:
-            //   organic: 45–92%  |  temperature: 25.0–34.0°C  |  pH: 6.3–9.0
-            // Status is computed using the same thresholds as PHP pond fetch above.
-            // Called by refreshPond() and the page visibility refresh handler.
             $pk=$_POST['pond_key']??'';
-            $o=rand(45,92);                      // organic level %
-            $t=round(rand(250,340)/10,1);         // temperature °C (250–340 → 25.0–34.0)
-            $p=round(rand(63,90)/10,1);           // pH (63–90 → 6.3–9.0)
+            $o=rand(45,92);
+            $t=round(rand(250,340)/10,1);
+            $p=round(rand(63,90)/10,1);
             $s='safe';
             if ($o>80||$t>32||$p>8.5) $s='critical';
             elseif ($o>60||$t>30||$p>7.8) $s='warning';
             echo json_encode(['success'=>true,'pond'=>$pk,'organic'=>$o,'temp'=>$t,'ph'=>$p,'status'=>$s,'timestamp'=>date('h:i:s A')]); exit;
 
         case 'get_pond_history':
-            // Returns the last 10 sensor readings for a pond (chronological order).
-            // Used by the IOT Panel mini-charts and history tables.
-            // Step 1: Look up the pond_id by pond_name (e.g. 'A-1')
-            // Step 2: Fetch last 10 detections DESC, then reverse to chronological
-            // Step 3: If no DB data, generate 10 simulated fallback readings
-            //         spaced 10 minutes apart going backward from now.
-            // array_reverse() is needed because we fetch DESC for LIMIT efficiency
-            // but Chart.js needs oldest-to-newest (left to right on chart).
             $pk = $_POST['pond_key'] ?? '';
             $history = ['labels'=>[],'organic'=>[],'temperature'=>[],'ph'=>[]];
             $pid_row = null;
@@ -423,7 +260,7 @@ if (isset($_POST['action'])) {
                 try {
                     $h_stmt = $pdo->prepare("SELECT organic_level, water_temperature, ph_level, detected_at FROM detections WHERE pond_id=? ORDER BY detected_at DESC LIMIT 10");
                     $h_stmt->execute([$pid_row['pond_id']]);
-                    $rows = array_reverse($h_stmt->fetchAll()); // Reverse: oldest first
+                    $rows = array_reverse($h_stmt->fetchAll());
                     foreach ($rows as $r) {
                         $history['labels'][]      = date('H:i', strtotime($r['detected_at']));
                         $history['organic'][]     = round($r['organic_level'], 1);
@@ -433,7 +270,6 @@ if (isset($_POST['action'])) {
                 } catch(Exception $e) {}
             }
             if (empty($history['labels'])) {
-                // Fallback: generate 10 simulated points, each 10 minutes apart
                 for ($i=9; $i>=0; $i--) {
                     $history['labels'][]      = date('H:i', strtotime("-{$i}0 minutes"));
                     $history['organic'][]     = rand(45,85);
@@ -444,19 +280,13 @@ if (isset($_POST['action'])) {
             echo json_encode(['success'=>true,'pond'=>$pk,'history'=>$history]); exit;
 
         case 'get_system_stats':
-            // Returns server + database statistics for the IOT Panel System Status card.
-            // memory_get_usage(true) returns allocated memory in bytes → divided by 1MB.
-            // DB counts are wrapped in try/catch — returns 0 if tables are missing.
-            // 'uptime' uses /proc/uptime (Linux only) → returns "00:00:00" on Windows servers.
-            // 'ph_time' is a human-readable timestamp in Asia/Manila timezone.
-            $mem_limit   = ini_get('memory_limit');                              // e.g. "128M"
-            $mem_usage   = round(memory_get_usage(true) / 1048576, 1);          // current MB
-            $mem_peak    = round(memory_get_peak_usage(true) / 1048576, 1);     // peak MB
+            $mem_limit   = ini_get('memory_limit');
+            $mem_usage   = round(memory_get_usage(true) / 1048576, 1);
+            $mem_peak    = round(memory_get_peak_usage(true) / 1048576, 1);
             $total_users = 0; $total_ponds_db = 0; $total_readings = 0; $total_alerts = 0;
             try {
                 $total_users    = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
                 $total_ponds_db = $pdo->query("SELECT COUNT(*) FROM ponds")->fetchColumn();
-                // Only count readings from the past 24 hours for relevance
                 $total_readings = $pdo->query("SELECT COUNT(*) FROM detections WHERE detected_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)")->fetchColumn();
                 $total_alerts   = $pdo->query("SELECT COUNT(*) FROM notifications WHERE status='unread'")->fetchColumn();
             } catch(Exception $e) {}
@@ -467,21 +297,15 @@ if (isset($_POST['action'])) {
                 'memory_peak'    => $mem_peak,
                 'memory_limit'   => $mem_limit,
                 'server_time'    => date('Y-m-d H:i:s'),
-                'ph_time'        => date('D, M d Y h:i:s A'),  // Asia/Manila display format
+                'ph_time'        => date('D, M d Y h:i:s A'),
                 'total_users'    => intval($total_users),
                 'total_ponds'    => intval($total_ponds_db),
                 'total_readings' => intval($total_readings),
                 'total_alerts'   => intval($total_alerts),
-                // Linux only: reads server uptime from /proc/uptime (returns seconds as float)
                 'uptime'         => date('H:i:s', mktime(0,0,intval(shell_exec('cut -d. -f1 /proc/uptime') ?? 0))),
             ]); exit;
 
         case 'save_settings':
-            // Persists admin notification and display preferences to $_SESSION.
-            // Settings are NOT stored in the database — they reset on session end.
-            // notif_critical/warning/info: 1 = enabled, 0 = disabled (checkbox logic)
-            // refresh_rate: seconds between IoT auto-refresh (3–30s, default 5s)
-            // theme_mode: reserved for future light/dark theme toggle
             $_SESSION['notif_critical'] = isset($_POST['notif_critical']) ? 1 : 0;
             $_SESSION['notif_warning']  = isset($_POST['notif_warning'])  ? 1 : 0;
             $_SESSION['notif_info']     = isset($_POST['notif_info'])     ? 1 : 0;
@@ -490,8 +314,6 @@ if (isset($_POST['action'])) {
             echo json_encode(['success'=>true,'message'=>'Settings saved successfully']); exit;
 
         case 'get_settings':
-            // Returns current session settings with defaults if not yet set.
-            // Default: critical=1 (on), warning=1 (on), info=0 (off), rate=5s, theme=dark
             echo json_encode([
                 'success'        => true,
                 'notif_critical' => $_SESSION['notif_critical'] ?? 1,
@@ -504,10 +326,6 @@ if (isset($_POST['action'])) {
         case 'logout':
             session_destroy(); echo json_encode(['success'=>true,'message'=>'Logged out']); exit;
 
-        // ── MANAGER → ADMIN NOTIFICATIONS (Admin side) ───────────────────
-        // get_admin_mgr_notifs  → Load all manager notifications for admin view
-        // mark_notif_received   → Auto-mark as Received when admin opens it
-        // mark_notif_done       → Admin marks a notification as Completed + optional note
         case 'get_admin_mgr_notifs':
             try {
                 $rows = $pdo->prepare("SELECT mn.*, u.full_name AS manager_name
@@ -524,7 +342,6 @@ if (isset($_POST['action'])) {
         case 'mark_notif_received':
             $nid = intval($_POST['notif_id'] ?? 0);
             try {
-                // Only update if still Pending (don't downgrade Completed back to Received)
                 $pdo->prepare("UPDATE manager_notifications
                     SET status='Received', received_at=NOW()
                     WHERE id=? AND status='Pending'")->execute([$nid]);
@@ -570,51 +387,6 @@ if (isset($_POST['action'])) {
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <style>
-/*
- * ══════════════════════════════════════════════════
- *  CSS TABLE OF CONTENTS
- * ══════════════════════════════════════════════════
- *  1.  Variables — design tokens (colors, fonts, radii, sizes)
- *  2.  Reset + Base body styles
- *  3.  Animated grid background (body::before)
- *  4.  Keyframe animations (fadeUp, slideIn, blink, spin...)
- *  5.  Custom scrollbar styling
- *  6.  Layout wrapper (.layout, .main)
- *  7.  Sidebar (head, logo, nav items, badge, footer)
- *  8.  Top navigation — mobile only (.topnav, .hamburger)
- *  9.  Bottom navigation — mobile z-index:9999 (.bottom-nav, .bnav-item)
- * 10.  Content area + section panel animation
- * 11.  Topbar (date, clock, status tags, live indicator)
- * 12.  KPI grid cards (.kpi-grid, .kpi)
- * 13.  Generic card container (.card, .card-head, .grid-2)
- * 14.  Status badges (.badge-safe, .badge-warning, .badge-critical...)
- * 15.  Buttons (.btn, .btn-primary, .btn-success, .btn-sm...)
- * 16.  User table (search row, bulk row, table, mobile cards)
- * 17.  Staff cards + Pond cards + Metrics chips + Progress bars
- * 18.  Leaflet map container + popup/zoom control overrides
- * 19.  Chart.js canvas wrapper + period tab buttons
- * 20.  Alert list items (.alert-item, .alert-icon, .alert-foot)
- * 21.  Reports (type grid, preview, stats, status row, download)
- * 22.  Activity log (.act-item, .act-icon types)
- * 23.  Modals (user, pond, confirm) + form controls
- * 24.  System flash alert (.sys-alert)
- * 25.  Toast notifications (.toast-wrap, .toast types)
- * 26.  Dashboard footer (.dash-footer)
- * 27.  Responsive — Tablet ≤1100px
- * 28.  Responsive — Mobile ≤768px (sidebar hidden, bottom nav shown)
- * 29.  Responsive — Small phones ≤480px
- * 30.  Touch devices (@media hover:none pointer:coarse)
- * 31.  Reduced motion (@media prefers-reduced-motion)
- * 32.  Session timer bar (.session-bar, .session-progress)
- * 33.  Network status banner (.net-banner)
- * 34.  IOT Panel (.iot-grid, .iot-card, .iot-val-row, .iot-table-wrap)
- * 35.  Settings section (.settings-grid, .toggle, .range-input)
- * 36.  Skeleton loader shimmer animation
- * 37.  Print styles
- * 38.  Large screens ≥1400px overrides
- * ══════════════════════════════════════════════════
- */
-/* ── VARIABLES ── */
 :root{
     --bg-deep:#060d17;--bg-panel:#0b1625;--bg-card:#0f1e30;--bg-elevated:#142235;--bg-hover:#1a2d45;
     --cyan:#00e5ff;--green:#39ff8a;--amber:#ffb800;--red:#ff3b5c;--violet:#b06cff;
@@ -633,7 +405,6 @@ body{
     font-family:var(--fd);min-height:100vh;overflow-x:hidden;
 }
 
-/* Animated background */
 body::before{
     content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
     background-image:
@@ -658,20 +429,14 @@ body::before{
 ::-webkit-scrollbar-track{background:var(--bg-deep)}
 ::-webkit-scrollbar-thumb{background:var(--cyan);border-radius:2px}
 
-/* ── LAYOUT ──
-   FIX 1: Remove z-index from .layout — it was blocking bottom-nav clicks
-   FIX 2: position:relative instead of creating new stacking context
-*/
 .layout{display:flex;min-height:100vh;position:relative}
 
-/* ── SIDEBAR ── */
 .sidebar{
     width:var(--sidebar-w);flex-shrink:0;
     background:rgba(9,22,37,.97);backdrop-filter:blur(20px);
     border-right:1px solid var(--bdr);
     position:fixed;top:0;left:0;bottom:0;
     display:flex;flex-direction:column;
-    /* FIX 3: Sidebar z-index must be LOWER than bottom-nav on mobile */
     z-index:500;
     transition:transform .3s cubic-bezier(.4,0,.2,1);
     overflow-y:auto;overflow-x:hidden;
@@ -715,12 +480,8 @@ body::before{
 .btn-logout-sidebar{width:100%;display:flex;align-items:center;justify-content:center;gap:.5rem;padding:.6rem;border-radius:var(--r-md);background:rgba(255,59,92,.1);border:1px solid rgba(255,59,92,.3);color:var(--red);font-family:var(--fd);font-size:.82rem;font-weight:600;cursor:pointer;transition:.25s;text-decoration:none}
 .btn-logout-sidebar:hover{background:rgba(255,59,92,.2)}
 
-/* ── MAIN CONTENT ── */
 .main{margin-left:var(--sidebar-w);flex:1;min-width:0;position:relative}
 
-/* ── TOP NAV (mobile only) ──
-   FIX 4: topnav z-index lower than bottom-nav
-*/
 .topnav{
     display:none;
     background:rgba(6,13,23,.97);backdrop-filter:blur(20px);
@@ -728,7 +489,7 @@ body::before{
     height:var(--nav-h);padding:0 1rem;
     align-items:center;justify-content:space-between;
     position:sticky;top:0;
-    z-index:200;  /* FIX: was 800, lowered */
+    z-index:200;
 }
 .topnav-brand{display:flex;align-items:center;gap:.6rem}
 .topnav-logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--cyan),var(--violet));display:flex;align-items:center;justify-content:center;font-size:.95rem;color:#000;font-weight:800;position:relative;overflow:hidden}
@@ -737,36 +498,25 @@ body::before{
 .hamburger{width:38px;height:38px;border-radius:9px;border:1px solid var(--bdr);background:var(--bg-elevated);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--txt2);font-size:.9rem;-webkit-tap-highlight-color:transparent;position:relative;min-height:44px;min-width:44px}
 .notif-dot-top{position:absolute;top:4px;right:4px;width:8px;height:8px;border-radius:50%;background:var(--red);border:2px solid var(--bg-deep);animation:blink 1.5s infinite}
 
-/* Sidebar overlay */
 .sidebar-overlay{
     display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);
-    /* FIX 5: overlay z-index must be above sidebar but below bottom-nav */
     z-index:600;
     backdrop-filter:blur(4px);opacity:0;transition:opacity .3s;
     pointer-events:none;
 }
 .sidebar-overlay.active{opacity:1;pointer-events:all}
 
-/* ─────────────────────────────────────────
-   BOTTOM NAV — THE MAIN FIX
-   FIX 6: z-index:9999 so it's always on top
-   FIX 7: pointer-events:all explicit
-   FIX 8: touch-action:manipulation for instant tap
-   FIX 9: Remove any transform that could block
-   FIX 10: isolation:isolate to prevent stacking context issues
-───────────────────────────────────────── */
 .bottom-nav{
     display:none;
     position:fixed;
     bottom:0;left:0;right:0;
-    z-index:9999;           /* HIGHEST z-index — always on top */
-    background:rgba(9,22,37,.98);
+    z-index:9999;
+    background:rgba(255, 255, 255, 0.98);
     backdrop-filter:blur(20px);
     border-top:1px solid var(--bdr);
     grid-template-columns:repeat(5,1fr);
     gap:0;
     padding-bottom:env(safe-area-inset-bottom, 0px);
-    /* No transform, no isolation that could interfere */
     pointer-events:all;
 }
 .bnav-item{
@@ -784,13 +534,10 @@ body::before{
     text-transform:uppercase;
     transition:color .2s, background .2s;
     position:relative;
-    /* FIX 11: touch-action for instant response, no delay */
     touch-action:manipulation;
     -webkit-tap-highlight-color:transparent;
     user-select:none;
-    /* FIX 12: min-height for comfortable tap target */
     min-height:52px;
-    /* FIX 13: make sure nothing clips the tap area */
     overflow:visible;
 }
 .bnav-item:active{
@@ -819,18 +566,14 @@ body::before{
     min-width:16px;text-align:center;pointer-events:none;
 }
 
-/* ── CONTENT ── */
 .content{
     padding:1.4rem 1.6rem 2rem;
     max-width:1600px;width:100%;
-    /* FIX 14: ensure content doesn't overlap bottom-nav on mobile */
 }
 
-/* Section panels */
 .section-panel{display:none;animation:fadeUp .35s ease both}
 .section-panel.active{display:block}
 
-/* ── TOPBAR ── */
 .topbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.7rem;padding:.7rem 1.3rem;background:var(--bg-card);border:1px solid var(--bdr);border-radius:var(--r-lg);margin-bottom:1.3rem}
 .topbar-left{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap}
 .topbar-day{font-size:1rem;font-weight:700}
@@ -843,7 +586,6 @@ body::before{
 .iot-live{display:inline-flex;align-items:center;gap:.35rem;font-family:var(--fm);font-size:.65rem;color:var(--green)}
 .iot-live span{width:6px;height:6px;border-radius:50%;background:var(--green);animation:blink 1.2s infinite;display:inline-block}
 
-/* ── KPI GRID ── */
 .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.3rem}
 .kpi{background:var(--bg-card);border:1px solid var(--bdr);border-radius:var(--r-lg);padding:1.2rem 1.3rem;position:relative;overflow:hidden;cursor:default;transition:.35s}
 .kpi:hover{transform:translateY(-3px);border-color:var(--bdr-glow);box-shadow:0 0 28px rgba(0,229,255,.12)}
@@ -853,7 +595,6 @@ body::before{
 .kpi-label{font-size:.68rem;color:var(--muted);letter-spacing:.5px;text-transform:uppercase}
 .kpi-corner{position:absolute;top:.8rem;right:.8rem;font-size:.58rem;font-family:var(--fm);color:var(--kc);opacity:.45;letter-spacing:.4px}
 
-/* ── CARDS ── */
 .card{background:var(--bg-card);border:1px solid var(--bdr);border-radius:var(--r-xl);padding:1.3rem 1.4rem;margin-bottom:1.2rem}
 .card:hover{border-color:rgba(0,229,255,.2)}
 .card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem}
@@ -861,7 +602,6 @@ body::before{
 .card-title i{color:var(--cyan)}
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;margin-bottom:1.2rem}
 
-/* ── BADGES ── */
 .badge{display:inline-flex;align-items:center;gap:.28rem;padding:.22rem .65rem;border-radius:4px;font-size:.67rem;font-weight:700;font-family:var(--fm);letter-spacing:.3px;text-transform:uppercase}
 .badge-active{background:rgba(57,255,138,.12);color:var(--green);border:1px solid rgba(57,255,138,.25)}
 .badge-inactive{background:rgba(255,59,92,.12);color:var(--red);border:1px solid rgba(255,59,92,.25)}
@@ -877,7 +617,6 @@ body::before{
 .badge-info{background:rgba(0,229,255,.1);color:var(--cyan);border:1px solid var(--bdr)}
 .dot-blink{width:5px;height:5px;border-radius:50%;background:currentColor;animation:blink 1.5s infinite;display:inline-block}
 
-/* ── BUTTONS ── */
 .btn{display:inline-flex;align-items:center;gap:.4rem;border:none;border-radius:var(--r-sm);padding:.45rem 1rem;font-family:var(--fd);font-size:.8rem;font-weight:600;cursor:pointer;transition:.22s;letter-spacing:.3px;white-space:nowrap;-webkit-tap-highlight-color:transparent;touch-action:manipulation;user-select:none}
 .btn:active{transform:scale(.97)}
 .btn:disabled{opacity:.4;cursor:not-allowed;pointer-events:none}
@@ -890,7 +629,6 @@ body::before{
 .btn-ghost:hover{border-color:var(--cyan);color:var(--cyan)}
 .btn-sm{padding:.28rem .65rem;font-size:.72rem}
 
-/* ── USER TABLE ── */
 .search-row{display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:.8rem}
 .inp{background:var(--bg-elevated);border:1px solid var(--bdr);color:var(--txt);border-radius:var(--r-sm);padding:.5rem .85rem;font-family:var(--fd);font-size:.82rem;outline:none;transition:.25s;-webkit-appearance:none}
 .inp:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(0,229,255,.1)}
@@ -908,7 +646,6 @@ td{padding:.62rem .75rem;border-bottom:1px solid rgba(255,255,255,.04);font-size
 tr:hover td{background:rgba(0,229,255,.03)}
 tr:last-child td{border-bottom:none}
 
-/* Mobile user cards */
 .user-mobile-card{display:none;background:var(--bg-elevated);border:1px solid var(--bdr);border-radius:var(--r-lg);padding:1rem;margin-bottom:.7rem;animation:slideIn .3s ease both}
 .umc-head{display:flex;align-items:center;gap:.7rem;margin-bottom:.7rem}
 .umc-avatar{width:40px;height:40px;border-radius:10px;background:var(--bg-card);border:1px solid var(--bdr);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.9rem;color:var(--cyan);flex-shrink:0}
@@ -919,7 +656,6 @@ tr:last-child td{border-bottom:none}
 .umc-lbl{color:var(--muted);font-family:var(--fm);font-size:.65rem;text-transform:uppercase;letter-spacing:.4px}
 .umc-actions{display:flex;gap:.4rem;margin-top:.7rem;flex-wrap:wrap}
 
-/* ── STAFF / POND CARDS ── */
 .staff-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.2rem}
 .staff-card{background:var(--bg-card);border:1px solid var(--bdr);border-radius:var(--r-xl);padding:1.2rem 1.1rem;cursor:pointer;transition:.3s;position:relative;overflow:hidden;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 .staff-card:hover{transform:translateY(-4px);border-color:var(--cyan)}
@@ -953,27 +689,23 @@ tr:last-child td{border-bottom:none}
 .pond-bar-fill{height:100%;border-radius:2px;transition:width 1s ease}
 .pond-ts{font-family:var(--fm);font-size:.62rem;color:var(--muted);display:flex;align-items:center;gap:.35rem;margin-top:.4rem}
 
-/* ── MAP ── */
 #map{height:420px;border-radius:var(--r-lg);overflow:hidden;border:1px solid var(--bdr);position:relative}
 .map-scan{position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,rgba(0,229,255,.5),transparent);pointer-events:none;z-index:500;animation:scanline 6s linear infinite}
 .map-legend{display:flex;gap:.7rem;align-items:center;font-family:var(--fm);font-size:.68rem;flex-wrap:wrap}
 .leg-item{display:flex;align-items:center;gap:.3rem;color:var(--txt2)}
 .leg-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
 
-/* Leaflet overrides */
 .leaflet-container{background:#060d17!important;font-family:var(--fd)!important}
 .leaflet-popup-content-wrapper{background:var(--bg-panel)!important;border:1px solid var(--bdr)!important;border-radius:var(--r-md)!important;box-shadow:0 8px 32px rgba(0,0,0,.5)!important;color:var(--txt)!important}
 .leaflet-popup-tip{background:var(--bg-panel)!important}
 .leaflet-control-zoom a{background:var(--bg-panel)!important;color:var(--txt)!important;border-color:var(--bdr)!important}
 .leaflet-control-attribution{background:rgba(6,13,23,.8)!important;color:var(--muted)!important}
 
-/* ── CHART ── */
 .chart-wrap{height:240px;margin-top:.8rem}
 .period-tabs{display:flex;gap:.4rem}
 .period-btn{font-family:var(--fm);font-size:.66rem;padding:.26rem .65rem;border-radius:4px;background:var(--bg-elevated);border:1px solid var(--bdr);color:var(--muted);cursor:pointer;transition:.2s;letter-spacing:.3px;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 .period-btn.active,.period-btn:hover{background:rgba(0,229,255,.1);border-color:var(--cyan);color:var(--cyan)}
 
-/* ── ALERTS ── */
 .alert-item{display:flex;gap:.75rem;padding:.8rem;border-radius:var(--r-md);margin-bottom:.45rem;border-left:3px solid transparent;background:rgba(0,0,0,.2);cursor:pointer;transition:.22s;animation:slideIn .3s ease both;-webkit-tap-highlight-color:transparent}
 .alert-item:hover{background:var(--bg-elevated)}
 .alert-item.critical{border-left-color:var(--red)}
@@ -986,15 +718,12 @@ tr:last-child td{border-bottom:none}
 .alert-foot{display:flex;justify-content:space-between;align-items:center}
 .alert-time{font-family:var(--fm);font-size:.62rem;color:var(--muted)}
 
-/* ── ALERTS SECTION ENHANCEMENTS ── */
-/* KPI summary strip above card */
 .alert-kpi-strip{display:grid;grid-template-columns:repeat(5,1fr);gap:.7rem;margin-bottom:1.2rem}
 .alert-kpi{background:var(--bg-card);border:1px solid var(--bdr);border-radius:var(--r-lg);padding:.85rem 1rem;text-align:center;position:relative;overflow:hidden;transition:.3s;cursor:default}
 .alert-kpi:hover{transform:translateY(-2px);border-color:var(--bdr-glow)}
 .alert-kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--akc,var(--cyan)),transparent)}
 .alert-kpi-val{font-family:var(--fm);font-size:1.6rem;font-weight:700;color:var(--akc,var(--cyan));line-height:1;margin-bottom:.2rem}
 .alert-kpi-lbl{font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
-/* Toolbar: filter tabs + search */
 .alert-toolbar{display:flex;gap:.6rem;margin-bottom:.8rem;flex-wrap:wrap;align-items:center}
 .alert-filter-tabs{display:flex;gap:.3rem;flex-wrap:wrap;flex:1;min-width:0}
 .alert-ftab{background:var(--bg-elevated);border:1px solid var(--bdr);color:var(--muted);border-radius:6px;padding:.28rem .7rem;font-family:var(--fm);font-size:.66rem;cursor:pointer;transition:.2s;white-space:nowrap;letter-spacing:.3px;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
@@ -1002,7 +731,6 @@ tr:last-child td{border-bottom:none}
 .alert-ftab.active{background:rgba(0,229,255,.1);border-color:var(--cyan);color:var(--cyan)}
 .alert-ftab-count{background:rgba(0,0,0,.3);border-radius:50px;padding:.05rem .35rem;font-size:.58rem;margin-left:.25rem}
 .alert-search-inp{width:180px;flex-shrink:0}
-/* Alert item enhancements */
 .alert-icon-col{display:flex;flex-direction:column;align-items:center;gap:.3rem;flex-shrink:0;padding-top:.1rem}
 .alert-unread-pip{width:7px;height:7px;border-radius:50%;background:var(--red);animation:blink 1.5s infinite;display:block}
 .alert-header-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:.2rem;gap:.4rem;flex-wrap:wrap}
@@ -1010,11 +738,9 @@ tr:last-child td{border-bottom:none}
 .alert-actions{display:flex;gap:.3rem;align-items:center;flex-wrap:wrap}
 .al-resolved{opacity:.55}
 .al-resolved:hover{opacity:.75}
-/* Alerts responsive */
 @media(max-width:768px){.alert-kpi-strip{grid-template-columns:repeat(3,1fr);gap:.5rem}.alert-kpi{padding:.65rem .5rem}.alert-kpi-val{font-size:1.3rem}.alert-toolbar{flex-direction:column;align-items:stretch}.alert-search-inp{width:100%}.alert-filter-tabs{gap:.25rem}.alert-ftab{font-size:.6rem;padding:.24rem .55rem}}
 @media(max-width:480px){.alert-kpi-strip{grid-template-columns:repeat(2,1fr)}.alert-kpi-strip .alert-kpi:last-child{grid-column:1/-1}}
 
-/* ── REPORT ── */
 .rpt-type-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.7rem;margin-bottom:1rem}
 .rpt-type-btn{background:var(--bg-elevated);border:1px solid var(--bdr);border-radius:var(--r-md);padding:.9rem .6rem;text-align:center;cursor:pointer;transition:.3s;color:var(--txt);-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 .rpt-type-btn:hover,.rpt-type-btn.active{border-color:var(--cyan);background:rgba(0,229,255,.07)}
@@ -1040,14 +766,12 @@ tr:last-child td{border-bottom:none}
 .metric-mini-lbl{font-size:.58rem;color:var(--muted)}
 .rpt-dl-row{display:flex;gap:.5rem;padding-top:.8rem;border-top:1px solid var(--bdr)}
 
-/* ── ACTIVITIES ── */
 .act-item{display:flex;align-items:center;gap:.7rem;padding:.6rem .4rem;border-bottom:1px solid rgba(255,255,255,.04);font-size:.8rem}
 .act-item:last-child{border-bottom:none}
 .act-icon{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:.72rem;flex-shrink:0}
 .act-icon.login{background:rgba(0,229,255,.12);color:var(--cyan)}.act-icon.reading{background:rgba(255,184,0,.12);color:var(--amber)}.act-icon.alert{background:rgba(255,59,92,.12);color:var(--red)}.act-icon.system{background:rgba(57,255,138,.12);color:var(--green)}
 .act-text{flex:1;color:var(--txt2)}.act-time{font-family:var(--fm);font-size:.63rem;color:var(--muted);white-space:nowrap}
 
-/* ── MODAL ── */
 .modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);backdrop-filter:blur(8px);z-index:10000;align-items:center;justify-content:center;padding:1rem}
 .modal.open{display:flex}
 .modal-box{background:var(--bg-panel);border:1px solid var(--bdr);border-radius:var(--r-xl);padding:1.8rem;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;animation:fadeUp .3s ease;-webkit-overflow-scrolling:touch}
@@ -1079,13 +803,11 @@ tr:last-child td{border-bottom:none}
 .meter-warning{background:linear-gradient(90deg,var(--amber),rgba(255,184,0,.5))}
 .meter-critical{background:linear-gradient(90deg,var(--red),rgba(255,59,92,.5))}
 
-/* ── SYSTEM MESSAGE ── */
 .sys-alert{display:flex;justify-content:space-between;align-items:center;padding:.75rem 1.1rem;border-radius:var(--r-md);margin-bottom:1rem;font-size:.83rem;animation:fadeUp .4s ease}
 .sys-alert.success{background:rgba(57,255,138,.1);border:1px solid rgba(57,255,138,.3);color:var(--green)}
 .sys-alert.error{background:rgba(255,59,92,.1);border:1px solid rgba(255,59,92,.3);color:var(--red)}
 .sys-alert-close{background:none;border:none;color:inherit;font-size:1rem;cursor:pointer;min-width:28px;min-height:28px}
 
-/* ── TOAST ── */
 .toast-wrap{position:fixed;top:74px;right:18px;z-index:10001;display:flex;flex-direction:column;gap:.45rem;pointer-events:none}
 .toast{display:flex;align-items:center;gap:.55rem;padding:.7rem 1rem;border-radius:var(--r-md);font-size:.8rem;font-weight:600;min-width:240px;animation:toastIn .3s ease;box-shadow:0 8px 24px rgba(0,0,0,.4);pointer-events:all}
 .toast.success{background:rgba(57,255,138,.13);border:1px solid rgba(57,255,138,.3);color:var(--green)}
@@ -1093,7 +815,6 @@ tr:last-child td{border-bottom:none}
 .toast.critical{background:rgba(255,59,92,.13);border:1px solid rgba(255,59,92,.3);color:var(--red)}
 .toast.info{background:rgba(0,229,255,.1);border:1px solid var(--bdr);color:var(--cyan)}
 
-/* ── ADMIN: MANAGER NOTIFICATION INBOX ── */
 .adm-notif-list{display:flex;flex-direction:column;gap:.6rem}
 .adm-notif-item{background:var(--bg-elevated);border:1px solid var(--bdr);border-radius:var(--r-xl);padding:1rem 1.1rem;border-left:4px solid var(--muted);transition:.25s;animation:slideIn .3s ease both}
 .adm-notif-item.status-Pending  {border-left-color:var(--amber)}
@@ -1108,7 +829,6 @@ tr:last-child td{border-bottom:none}
 .adm-notif-note-inp{flex:1;min-width:160px;background:var(--bg-card);border:1px solid var(--bdr);color:var(--txt);border-radius:var(--r-sm);padding:.38rem .7rem;font-family:var(--fd);font-size:.78rem;outline:none;transition:.25s}
 .adm-notif-note-inp:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(0,229,255,.08)}
 .adm-notif-note-inp::placeholder{color:var(--muted)}
-/* Status pill — same as manager side */
 .status-pill{display:inline-flex;align-items:center;gap:.28rem;padding:.18rem .6rem;border-radius:50px;font-family:var(--fm);font-size:.6rem;font-weight:700;letter-spacing:.3px;white-space:nowrap}
 .status-pill.Pending  {background:rgba(255,184,0,.12);color:var(--amber);border:1px solid rgba(255,184,0,.25)}
 .status-pill.Received {background:rgba(0,229,255,.1); color:var(--cyan); border:1px solid rgba(0,229,255,.2)}
@@ -1118,7 +838,6 @@ tr:last-child td{border-bottom:none}
 .pri-normal  {background:var(--cyan)}
 .pri-high    {background:var(--amber)}
 .pri-critical{background:var(--red);animation:blink 1.5s infinite}
-/* Inbox KPI strip */
 .adm-inbox-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:.7rem;margin-bottom:1rem}
 .adm-inbox-kpi{background:var(--bg-card);border:1px solid var(--bdr);border-radius:var(--r-lg);padding:.7rem 1rem;text-align:center;position:relative;overflow:hidden}
 .adm-inbox-kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--ikc,var(--cyan)),transparent)}
@@ -1126,12 +845,8 @@ tr:last-child td{border-bottom:none}
 .adm-inbox-kpi-lbl{font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
 @media(max-width:768px){.adm-inbox-strip{grid-template-columns:repeat(3,1fr)}.adm-notif-foot{flex-direction:column;align-items:stretch}.adm-notif-note-inp{width:100%}}
 
-/* ── FOOTER ── */
 .dash-footer{padding:.75rem 1.4rem;background:var(--bg-card);border:1px solid var(--bdr);border-radius:var(--r-lg);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;font-family:var(--fm);font-size:.67rem;color:var(--muted);margin-top:.5rem}
 
-/* ═══════════════════════════
-   RESPONSIVE — TABLET ≤1100px
-═══════════════════════════ */
 @media(max-width:1100px){
     :root{--sidebar-w:220px}
     .kpi-grid{grid-template-columns:repeat(2,1fr)}
@@ -1143,33 +858,15 @@ tr:last-child td{border-bottom:none}
     .metrics-mini{grid-template-columns:1fr 1fr}
 }
 
-/* ═══════════════════════════
-   RESPONSIVE — MOBILE ≤768px
-═══════════════════════════ */
 @media(max-width:768px){
     :root{--nav-h:58px}
-
-    /* Sidebar slides off screen */
     .sidebar{transform:translateX(-100%);z-index:700}
     .sidebar.open{transform:translateX(0);z-index:700}
     .sidebar-overlay{display:block}
-
-    /* Top nav appears */
     .topnav{display:flex}
-
-    /* Main fills full width */
     .main{margin-left:0}
-
-    /* Bottom nav appears — CRITICAL: must be display:grid */
     .bottom-nav{display:grid}
-
-    /* Content padding — enough room for top nav + bottom nav */
-    .content{
-        padding:1rem 1rem 0;
-        /* FIX 15: Add padding-bottom = bottom-nav height + safe area */
-        padding-bottom:calc(var(--bnav-h) + env(safe-area-inset-bottom, 12px) + 16px);
-    }
-
+    .content{padding:1rem 1rem 0;padding-bottom:calc(var(--bnav-h) + env(safe-area-inset-bottom, 12px) + 16px)}
     .topbar{padding:.6rem .9rem}
     .topbar-left{gap:.5rem}
     .kpi-grid{grid-template-columns:repeat(2,1fr);gap:.7rem}
@@ -1178,11 +875,8 @@ tr:last-child td{border-bottom:none}
     .grid-2{grid-template-columns:1fr}
     .staff-grid{grid-template-columns:1fr}
     .pond-cards-grid{grid-template-columns:1fr}
-
-    /* Hide desktop table, show mobile cards */
     .tbl-wrap table{display:none}
     .user-mobile-card{display:block}
-
     .bulk-row{gap:.4rem}
     .rpt-type-grid{grid-template-columns:1fr}
     .rpt-stats{grid-template-columns:1fr 1fr}
@@ -1196,9 +890,6 @@ tr:last-child td{border-bottom:none}
     .dash-footer{flex-direction:column;text-align:center}
 }
 
-/* ═══════════════════════════
-   SMALL PHONES ≤480px
-═══════════════════════════ */
 @media(max-width:480px){
     .kpi-grid{grid-template-columns:1fr 1fr;gap:.5rem}
     .kpi{padding:.8rem .85rem}
@@ -1211,20 +902,14 @@ tr:last-child td{border-bottom:none}
     .bnav-item i{font-size:1rem}
 }
 
-/* ═══════════════════════════
-   TOUCH DEVICE SPECIFIC
-═══════════════════════════ */
 @media(hover:none) and (pointer:coarse){
     .btn{min-height:44px}
-    .inp{font-size:16px}   /* Prevent iOS zoom */
+    .inp{font-size:16px}
     .form-ctrl{font-size:16px}
     .bnav-item{min-height:52px}
     .nav-item{min-height:44px}
 }
 
-/* ═══════════════════════════
-   REDUCED MOTION
-═══════════════════════════ */
 @media(prefers-reduced-motion:reduce){
     *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
     .blink-dot,.dot-blink,.nav-badge{animation:none!important}
@@ -1232,9 +917,6 @@ tr:last-child td{border-bottom:none}
     .map-scan{display:none}
 }
 
-/* ═══════════════════════════
-   SESSION TIMER BAR
-═══════════════════════════ */
 .session-bar{
     display:flex;align-items:center;gap:.7rem;padding:.45rem 1rem;
     background:rgba(255,184,0,.07);border:1px solid rgba(255,184,0,.2);
@@ -1248,9 +930,6 @@ tr:last-child td{border-bottom:none}
 .session-progress-fill{height:100%;border-radius:2px;background:var(--amber);transition:width 1s linear}
 .session-bar.warning .session-progress-fill{background:var(--red);animation:blink 1s infinite}
 
-/* ═══════════════════════════
-   NETWORK STATUS BANNER
-═══════════════════════════ */
 .net-banner{
     display:none;position:fixed;top:var(--nav-h);left:0;right:0;z-index:8000;
     padding:.5rem 1rem;text-align:center;font-family:var(--fm);font-size:.72rem;
@@ -1259,16 +938,12 @@ tr:last-child td{border-bottom:none}
 .net-banner.offline{background:rgba(255,59,92,.95);color:#fff;display:block}
 .net-banner.online-back{background:rgba(57,255,138,.9);color:#000;display:block}
 
-/* ═══════════════════════════
-   IOT PANEL SECTION
-═══════════════════════════ */
 .iot-grid{
     display:grid;
     grid-template-columns:repeat(3,1fr);
     gap:1rem;
     margin-bottom:1.2rem;
     align-items:start;
-    /* KEY FIX: minmax(0,1fr) prevents columns from growing beyond their allocated space */
     grid-template-columns:repeat(3,minmax(0,1fr));
 }
 .iot-card{
@@ -1280,9 +955,7 @@ tr:last-child td{border-bottom:none}
     display:flex;
     flex-direction:column;
     min-height:0;
-    /* KEY FIX: overflow hidden so nothing bleeds outside the card */
     overflow:hidden;
-    /* KEY FIX: width constrained to grid cell, never exceeds */
     width:100%;
     min-width:0;
     box-sizing:border-box;
@@ -1297,13 +970,11 @@ tr:last-child td{border-bottom:none}
 .iot-card-head{
     display:flex;justify-content:space-between;align-items:flex-start;
     margin-bottom:.6rem;gap:.4rem;
-    /* KEY FIX: prevent head from overflowing */
     min-width:0;overflow:hidden;
 }
 .iot-card-title{
     font-size:.75rem;font-weight:700;letter-spacing:.2px;text-transform:uppercase;
     display:flex;align-items:center;gap:.35rem;
-    /* KEY FIX: truncate long names */
     min-width:0;overflow:hidden;
     white-space:nowrap;text-overflow:ellipsis;
     flex:1;
@@ -1311,14 +982,11 @@ tr:last-child td{border-bottom:none}
 .iot-card-head > div:last-child{ flex-shrink:0 }
 .iot-mini-chart{
     height:85px;margin:.4rem 0;flex-shrink:0;
-    /* KEY FIX: canvas must be constrained to card width */
     width:100%;max-width:100%;overflow:hidden;
 }
 .iot-mini-chart canvas{ max-width:100%!important; }
-/* IOT value chips row */
 .iot-val-row{
     display:grid;grid-template-columns:repeat(3,1fr);gap:.35rem;margin:.5rem 0;
-    /* KEY FIX: never overflow */
     min-width:0;width:100%;
 }
 .iot-val-chip{
@@ -1335,7 +1003,6 @@ tr:last-child td{border-bottom:none}
     font-size:.52rem;color:var(--muted);margin-top:.1rem;
     letter-spacing:.3px;display:block;
 }
-/* IOT table wrapper — KEY FIX: scroll horizontally IF needed, never push card wider */
 .iot-table-wrap{
     overflow-x:auto;
     -webkit-overflow-scrolling:touch;
@@ -1343,12 +1010,10 @@ tr:last-child td{border-bottom:none}
     border:1px solid var(--bdr);
     margin-top:.5rem;
     flex:1;
-    /* prevent table from pushing card wider */
     max-width:100%;
     width:100%;
 }
 .iot-readings-table{
-    /* KEY FIX: table-layout fixed = columns obey width constraints */
     width:100%;
     table-layout:fixed;
     border-collapse:collapse;
@@ -1361,19 +1026,16 @@ tr:last-child td{border-bottom:none}
     border-bottom:1px solid var(--bdr);
     text-align:left;font-size:.58rem;
     letter-spacing:.4px;text-transform:uppercase;
-    /* KEY FIX: truncate header text */
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
 .iot-readings-table td{
     padding:.28rem .4rem;
     border-bottom:1px solid rgba(255,255,255,.03);
     color:var(--txt2);
-    /* KEY FIX: truncate cell text */
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
 .iot-readings-table tr:last-child td{border-bottom:none}
 .iot-readings-table tr:hover td{background:rgba(0,229,255,.04);color:var(--txt)}
-/* System stats: 3 cols on desktop, 2 on tablet, 1 on phone */
 .sys-stats-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.6rem;margin-bottom:1rem}
 .sys-stat{background:var(--bg-elevated);border:1px solid var(--bdr);border-radius:var(--r-md);padding:.75rem .9rem;display:flex;align-items:center;gap:.65rem;min-width:0;overflow:hidden}
 .sys-stat-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:.82rem;flex-shrink:0}
@@ -1392,9 +1054,6 @@ tr:last-child td{border-bottom:none}
     .iot-val-chip .val{font-size:.78rem}
 }
 
-/* ═══════════════════════════
-   SETTINGS SECTION
-═══════════════════════════ */
 .settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.2rem}
 .settings-block{background:var(--bg-card);border:1px solid var(--bdr);border-radius:var(--r-xl);padding:1.3rem}
 .settings-block-title{font-size:.78rem;font-weight:700;letter-spacing:.4px;text-transform:uppercase;margin-bottom:1rem;display:flex;align-items:center;gap:.45rem;padding-bottom:.6rem;border-bottom:1px solid var(--bdr)}
@@ -1403,14 +1062,12 @@ tr:last-child td{border-bottom:none}
 .setting-row:last-child{border-bottom:none}
 .setting-label{font-size:.82rem;font-weight:500}
 .setting-desc{font-size:.68rem;color:var(--muted);margin-top:.1rem;font-family:var(--fm)}
-/* Toggle switch */
 .toggle{position:relative;display:inline-block;width:40px;height:22px;flex-shrink:0}
 .toggle input{opacity:0;width:0;height:0}
 .toggle-slider{position:absolute;cursor:pointer;inset:0;background:var(--bg-elevated);border:1px solid var(--bdr);border-radius:22px;transition:.3s}
 .toggle-slider::before{content:'';position:absolute;height:16px;width:16px;left:2px;bottom:2px;background:var(--muted);border-radius:50%;transition:.3s}
 .toggle input:checked + .toggle-slider{background:rgba(0,229,255,.15);border-color:var(--cyan)}
 .toggle input:checked + .toggle-slider::before{transform:translateX(18px);background:var(--cyan)}
-/* Range input */
 .range-wrap{display:flex;align-items:center;gap:.6rem;flex:1;justify-content:flex-end}
 .range-input{-webkit-appearance:none;appearance:none;width:100px;height:4px;border-radius:2px;background:var(--bg-elevated);outline:none;cursor:pointer}
 .range-input::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:16px;height:16px;border-radius:50%;background:var(--cyan);cursor:pointer;border:2px solid var(--bg-panel)}
@@ -1424,15 +1081,9 @@ tr:last-child td{border-bottom:none}
     .settings-grid{grid-template-columns:1fr}
 }
 
-/* ═══════════════════════════
-   SKELETON LOADER
-═══════════════════════════ */
 @keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
 .skeleton{background:linear-gradient(90deg,var(--bg-elevated) 25%,var(--bg-hover) 50%,var(--bg-elevated) 75%);background-size:800px 100%;animation:shimmer 1.5s infinite;border-radius:4px;display:inline-block}
 
-/* ═══════════════════════════
-   PRINT STYLES
-═══════════════════════════ */
 @media print{
     .sidebar,.topnav,.bottom-nav,.toast-wrap,.modal,.session-bar,.net-banner{display:none!important}
     .main{margin-left:0!important}
@@ -1446,9 +1097,6 @@ tr:last-child td{border-bottom:none}
     .section-panel{display:block!important}
 }
 
-/* ═══════════════════════════
-   LARGE SCREENS ≥1400px
-═══════════════════════════ */
 @media(min-width:1400px){
     :root{--sidebar-w:280px}
     .content{padding:1.6rem 2rem 2rem}
@@ -1457,19 +1105,92 @@ tr:last-child td{border-bottom:none}
     .iot-grid{grid-template-columns:repeat(3,1fr)}
     .sys-stats-grid{grid-template-columns:repeat(3,1fr)}
 }
+
+/* ─── WHITE THEME OVERRIDE ───────────────────────────────────────────── */
+:root {
+    --bg-deep:     #f0f4f8;
+    --bg-panel:    #ffffff;
+    --bg-card:     #ffffff;
+    --bg-elevated: #f5f8fc;
+    --bg-hover:    #e8f0fb;
+    --txt:  #0f1e30;
+    --txt2: #3a5470;
+    --muted:#6b8aaa;
+    --bdr:      rgba(0,120,200,.13);
+    --bdr-glow: rgba(0,180,255,.35);
+}
+body::before {
+    background-image:
+        linear-gradient(rgba(0,150,220,.045) 1px,transparent 1px),
+        linear-gradient(90deg,rgba(0,150,220,.045) 1px,transparent 1px);
+}
+.sidebar{background:rgba(255,255,255,.98);border-right:1px solid var(--bdr);box-shadow:2px 0 16px rgba(0,100,180,.07)}
+.sidebar-sub{color:#6b8aaa}
+.nav-section{color:#a0b8d0}
+.nav-item{color:#3a5470}
+.nav-item:hover{background:#eef4fb;color:#0f1e30}
+.nav-item.active{background:rgba(0,180,255,.09);color:var(--cyan)}
+.sidebar-user{background:#f0f6ff;border-color:var(--bdr)}
+.sidebar-uname{color:#0f1e30}
+.sidebar-urole{color:#6b8aaa}
+.topnav{background:rgba(255,255,255,.97);border-bottom:1px solid var(--bdr);box-shadow:0 2px 10px rgba(0,100,180,.06)}
+.topbar{background:#ffffff;border:1px solid var(--bdr);box-shadow:0 2px 8px rgba(0,100,180,.05)}
+.topbar-day{color:#0f1e30}
+.topbar-date{color:#6b8aaa}
+.card{background:#ffffff;border:1px solid var(--bdr);box-shadow:0 2px 12px rgba(0,100,180,.06)}
+.card:hover{border-color:rgba(0,180,255,.28)}
+.kpi{background:#ffffff;border:1px solid var(--bdr);box-shadow:0 2px 10px rgba(0,100,180,.06)}
+.kpi:hover{box-shadow:0 4px 20px rgba(0,180,255,.14);border-color:var(--bdr-glow)}
+.kpi-label{color:#6b8aaa}
+.kpi-corner{opacity:.35}
+.bottom-nav{background:rgba(255,255,255,.99);border-top:1px solid var(--bdr);box-shadow:0 -2px 12px rgba(0,100,180,.08)}
+.bnav-item{color:#6b8aaa}
+.bnav-item.active{color:var(--cyan);background:rgba(0,180,255,.07)}
+th{color:#6b8aaa;border-bottom:1px solid var(--bdr)}
+td{border-bottom:1px solid rgba(0,100,180,.07)}
+tr:hover td{background:rgba(0,180,255,.04)}
+.inp,.form-ctrl{background:#f5f8fc;border:1px solid var(--bdr);color:#0f1e30}
+.inp:focus,.form-ctrl:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(0,200,255,.1)}
+.inp::placeholder,.form-ctrl::placeholder{color:#a0b8d0}
+.btn-ghost{background:#f0f6ff;color:#3a5470;border:1px solid var(--bdr)}
+.btn-ghost:hover{border-color:var(--cyan);color:var(--cyan);background:#e8f4fb}
+.modal-box,.confirm-box{background:#ffffff;border:1px solid var(--bdr);box-shadow:0 16px 48px rgba(0,100,180,.15)}
+.modal-head{border-bottom:1px solid var(--bdr)}
+.modal-title{color:#0f1e30}
+.modal-close{color:#6b8aaa}
+.modal-close:hover{color:var(--red);background:rgba(255,59,92,.08)}
+.pond-card,.staff-card,.iot-card{background:#ffffff;border:1px solid var(--bdr);box-shadow:0 2px 8px rgba(0,100,180,.05)}
+.metric-chip{background:rgba(0,130,200,.06)}
+.metric-chip:hover{background:rgba(0,180,255,.1)}
+.alert-item{background:#f7fafd}
+.alert-item:hover{background:#eef4fb}
+.settings-block{background:#ffffff;border:1px solid var(--bdr)}
+.about-block{background:#f5f8fc;border:1px solid var(--bdr)}
+.act-text{color:#3a5470}
+.rpt-preview{background:#f5f8fc;border:1px solid var(--bdr)}
+.rpt-stat{background:#eef4fb;border:1px solid var(--bdr)}
+.iot-table-wrap{border:1px solid var(--bdr)}
+.iot-readings-table td{color:#3a5470}
+.iot-readings-table tr:hover td{background:rgba(0,180,255,.05);color:#0f1e30}
+::-webkit-scrollbar-track{background:#f0f4f8}
+::-webkit-scrollbar-thumb{background:var(--cyan)}
+.dash-footer{background:#ffffff;border:1px solid var(--bdr);box-shadow:0 -1px 8px rgba(0,100,180,.05)}
+.bulk-row{background:#f5f8fc;border:1px solid var(--bdr)}
+.sys-stat{background:#f5f8fc;border:1px solid var(--bdr)}
+.adm-notif-item{background:#f7fafd;border-color:var(--bdr)}
+.adm-notif-item:hover{background:#eef4fb}
+.adm-notif-note-inp{background:#f0f6ff;border:1px solid var(--bdr);color:#0f1e30}
+.adm-notif-note-inp::placeholder{color:#a0b8d0}
+.leaflet-popup-content-wrapper{background:#ffffff!important;border:1px solid var(--bdr)!important;color:#0f1e30!important}
+.leaflet-popup-tip{background:#ffffff!important}
+.leaflet-control-zoom a{background:#ffffff!important;color:#0f1e30!important;border-color:var(--bdr)!important}
+/* ─── END WHITE THEME ────────────────────────────────────────────────── */
 </style>
-</head>
-<body>
 
 <div class="toast-wrap" id="toastWrap"></div>
 
-<!--
-  FIX 16: sidebar-overlay must be OUTSIDE .layout
-  so its z-index works correctly
--->
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
 
-<!-- ════════ SIDEBAR ════════ -->
 <aside class="sidebar" id="sidebar">
     <div class="sidebar-head">
         <div class="sidebar-logo"><i class="fas fa-fish"></i></div>
@@ -1515,11 +1236,9 @@ tr:last-child td{border-bottom:none}
     </div>
 </aside>
 
-<!-- ════════ LAYOUT ════════ -->
 <div class="layout">
 <div class="main">
 
-<!-- TOP NAV (mobile) -->
 <nav class="topnav">
     <div class="topnav-brand">
         <div class="topnav-logo"><i class="fas fa-fish"></i></div>
@@ -1534,7 +1253,6 @@ tr:last-child td{border-bottom:none}
     </div>
 </nav>
 
-<!-- CONTENT -->
 <div class="content">
 
 <?php if (!empty($message)): ?>
@@ -1544,7 +1262,6 @@ tr:last-child td{border-bottom:none}
 </div>
 <?php endif; ?>
 
-<!-- TOPBAR -->
 <div class="topbar">
     <div class="topbar-left">
         <div>
@@ -1560,10 +1277,8 @@ tr:last-child td{border-bottom:none}
     </div>
 </div>
 
-<!-- NETWORK BANNER -->
 <div class="net-banner" id="netBanner"></div>
 
-<!-- ════ SECTION: OVERVIEW ════ -->
 <div class="section-panel active" id="sec-overview">
     <div class="kpi-grid">
         <div class="kpi" style="--kc:var(--cyan)"><div class="kpi-corner">USERS</div><div class="kpi-icon"><i class="fas fa-users"></i></div><div class="kpi-val"><?php echo count($users); ?></div><div class="kpi-label">Total Users</div></div>
@@ -1572,7 +1287,6 @@ tr:last-child td{border-bottom:none}
         <div class="kpi" style="--kc:var(--amber)"><div class="kpi-corner">TODAY</div><div class="kpi-icon"><i class="fas fa-chart-line"></i></div><div class="kpi-val"><?php echo rand(180,420); ?></div><div class="kpi-label">Readings</div></div>
     </div>
 
-    <!-- Staff -->
     <div class="card">
         <div class="card-head">
             <div class="card-title"><i class="fas fa-user-tie"></i> Staff Assignments</div>
@@ -1599,7 +1313,6 @@ tr:last-child td{border-bottom:none}
         </div>
     </div>
 
-    <!-- Pond Cards -->
     <div class="card">
         <div class="card-head">
             <div class="card-title"><i class="fas fa-layer-group"></i> Pond Overview</div>
@@ -1638,7 +1351,6 @@ tr:last-child td{border-bottom:none}
         </div>
     </div>
 
-    <!-- Quick alerts -->
     <div class="card">
         <div class="card-head">
             <div class="card-title"><i class="fas fa-bell"></i> Recent Alerts</div>
@@ -1658,7 +1370,6 @@ tr:last-child td{border-bottom:none}
     </div>
 </div>
 
-<!-- ════ SECTION: USERS ════ -->
 <div class="section-panel" id="sec-users">
     <div class="card">
         <div class="card-head">
@@ -1677,7 +1388,6 @@ tr:last-child td{border-bottom:none}
             <select class="inp" id="roleFilter" onchange="filterUsers()"><option value="all">All Roles</option><option value="admin">Admin</option><option value="manager">Manager</option><option value="staff">Staff</option></select>
             <select class="inp" id="statusFilter" onchange="filterUsers()"><option value="all">All Status</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
         </div>
-        <!-- Desktop table -->
         <div class="tbl-wrap">
             <table id="usersTable">
                 <thead><tr><th width="30px"></th><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Last Login</th><th>Pond</th><th>Actions</th></tr></thead>
@@ -1705,7 +1415,6 @@ tr:last-child td{border-bottom:none}
                 </tbody>
             </table>
         </div>
-        <!-- Mobile cards -->
         <div id="userMobileCards">
             <?php foreach($users as $u):
                 $init=''; foreach(explode(' ',$u['full_name']) as $n) $init.=strtoupper(substr($n,0,1));
@@ -1734,7 +1443,6 @@ tr:last-child td{border-bottom:none}
     </div>
 </div>
 
-<!-- ════ SECTION: PONDS ════ -->
 <div class="section-panel" id="sec-ponds">
     <div class="card">
         <div class="card-head">
@@ -1766,7 +1474,6 @@ tr:last-child td{border-bottom:none}
     </div>
 </div>
 
-<!-- ════ SECTION: MAP ════ -->
 <div class="section-panel" id="sec-map">
     <div class="card">
         <div class="card-head">
@@ -1781,7 +1488,6 @@ tr:last-child td{border-bottom:none}
     </div>
 </div>
 
-<!-- ════ SECTION: CHARTS ════ -->
 <div class="section-panel" id="sec-charts">
     <div class="card">
         <div class="card-head">
@@ -1800,10 +1506,8 @@ tr:last-child td{border-bottom:none}
     </div>
 </div>
 
-<!-- ════ SECTION: ALERTS ════ -->
 <div class="section-panel" id="sec-alerts">
 
-    <!-- Summary KPI strip -->
     <div class="alert-kpi-strip">
         <div class="alert-kpi" id="akpi-total">
             <div class="alert-kpi-val" id="akpi-total-val"><?php echo count($alerts); ?></div>
@@ -1838,7 +1542,6 @@ tr:last-child td{border-bottom:none}
             </div>
         </div>
 
-        <!-- Filter + Search bar -->
         <div class="alert-toolbar">
             <div class="alert-filter-tabs" id="alertFilterTabs">
                 <button class="alert-ftab active" data-filter="all"    onclick="filterAlerts('all',this)">All <span class="alert-ftab-count" id="fc-all"><?php echo count($alerts); ?></span></button>
@@ -1850,7 +1553,6 @@ tr:last-child td{border-bottom:none}
             <input class="inp alert-search-inp" type="text" id="alertSearch" placeholder="Search alerts…" oninput="searchAlerts(this.value)">
         </div>
 
-        <!-- Alert list -->
         <div id="alertsList">
             <?php foreach($alerts as $al):
                 $icon = $al['type']==='critical' ? 'exclamation-circle' : ($al['type']==='warning' ? 'exclamation-triangle' : 'info-circle');
@@ -1865,7 +1567,6 @@ tr:last-child td{border-bottom:none}
                  data-msg="<?php echo strtolower(htmlspecialchars($al['message'])); ?>"
                  onclick="alertItemClick(event,'<?php echo $al['pond_name']; ?>')">
 
-                <!-- Left icon column -->
                 <div class="alert-icon-col">
                     <i class="fas fa-<?php echo $icon; ?> alert-icon <?php echo $al['type']; ?>"></i>
                     <?php if($is_unread): ?>
@@ -1873,7 +1574,6 @@ tr:last-child td{border-bottom:none}
                     <?php endif; ?>
                 </div>
 
-                <!-- Main content -->
                 <div style="flex:1;min-width:0">
                     <div class="alert-header-row">
                         <div class="alert-pond">
@@ -1924,7 +1624,6 @@ tr:last-child td{border-bottom:none}
             </div>
             <?php endforeach; ?>
 
-            <!-- Empty state (hidden by default, shown by JS filter) -->
             <div id="alertEmptyState" style="display:none;text-align:center;padding:2.5rem 1rem;color:var(--muted)">
                 <i class="fas fa-check-circle" style="color:var(--green);font-size:2.5rem;display:block;margin-bottom:.75rem;opacity:.7"></i>
                 <div style="font-size:.9rem;font-weight:600;margin-bottom:.3rem">No alerts found</div>
@@ -1941,7 +1640,6 @@ tr:last-child td{border-bottom:none}
     </div>
 </div>
 
-<!-- ════ SECTION: REPORTS ════ -->
 <div class="section-panel" id="sec-reports">
     <div class="card">
         <div class="card-head"><div class="card-title"><i class="fas fa-file-alt"></i> Report Generation</div></div>
@@ -1976,7 +1674,6 @@ tr:last-child td{border-bottom:none}
     </div>
 </div>
 
-<!-- ════ SECTION: ACTIVITIES ════ -->
 <div class="section-panel" id="sec-activities">
     <div class="card">
         <div class="card-head"><div class="card-title"><i class="fas fa-history"></i> Recent Activities</div><div class="iot-live"><span></span> LIVE</div></div>
@@ -1990,10 +1687,8 @@ tr:last-child td{border-bottom:none}
     </div>
 </div>
 
-<!-- ════ SECTION: IOT PANEL ════ -->
 <div class="section-panel" id="sec-iot">
 
-    <!-- System Stats -->
     <div class="card">
         <div class="card-head">
             <div class="card-title"><i class="fas fa-server"></i> System Status</div>
@@ -2032,7 +1727,6 @@ tr:last-child td{border-bottom:none}
         </div>
     </div>
 
-    <!-- Per-Pond IOT History Charts (wrapped in card) -->
     <div class="card">
         <div class="card-head">
             <div class="card-title"><i class="fas fa-microchip"></i> Pond IOT History</div>
@@ -2051,7 +1745,6 @@ tr:last-child td{border-bottom:none}
             ?>
             <div class="iot-card" style="border-color:<?php echo $bdr2; ?>">
 
-                <!-- Card Head: title + badge + refresh -->
                 <div class="iot-card-head">
                     <div class="iot-card-title" style="color:<?php echo $sc; ?>">
                         <i class="fas fa-water" style="flex-shrink:0"></i>
@@ -2068,7 +1761,6 @@ tr:last-child td{border-bottom:none}
                     </div>
                 </div>
 
-                <!-- Staff info — single line, ellipsis if long -->
                 <div style="font-size:.68rem;color:var(--muted);margin-bottom:.45rem;
                             overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
                     <i class="fas fa-user" style="color:var(--cyan)"></i> <?php echo htmlspecialchars($pond['staff']); ?>
@@ -2076,12 +1768,10 @@ tr:last-child td{border-bottom:none}
                     <i class="fas fa-map-pin" style="color:var(--red)"></i> <?php echo htmlspecialchars($pond['location']); ?>
                 </div>
 
-                <!-- Mini Chart — constrained to card width -->
                 <div class="iot-mini-chart">
                     <canvas id="iotChart-<?php echo $key; ?>"></canvas>
                 </div>
 
-                <!-- Live Value Chips -->
                 <div class="iot-val-row">
                     <div class="iot-val-chip" style="border:1px solid <?php echo $bc_o; ?>">
                         <span class="val ic-organic" id="iot-o-<?php echo $key; ?>"><?php echo $pond['organic_level']; ?>%</span>
@@ -2097,7 +1787,6 @@ tr:last-child td{border-bottom:none}
                     </div>
                 </div>
 
-                <!-- History Table — scrollable wrapper, table-layout:fixed -->
                 <div class="iot-table-wrap">
                     <table class="iot-readings-table">
                         <colgroup>
@@ -2130,7 +1819,6 @@ tr:last-child td{border-bottom:none}
         </div>
     </div>
 
-    <!-- CSV Export -->
     <div class="card">
         <div class="card-head">
             <div class="card-title"><i class="fas fa-file-export"></i> Export Data</div>
@@ -2154,10 +1842,8 @@ tr:last-child td{border-bottom:none}
     </div>
 </div>
 
-<!-- ════ SECTION: SETTINGS ════ -->
 <div class="section-panel" id="sec-settings">
     <div class="settings-grid">
-        <!-- Notification Settings -->
         <div class="settings-block">
             <div class="settings-block-title"><i class="fas fa-bell"></i> Notification Preferences</div>
             <div class="setting-row">
@@ -2193,7 +1879,6 @@ tr:last-child td{border-bottom:none}
             </div>
         </div>
 
-        <!-- Display Settings -->
         <div class="settings-block">
             <div class="settings-block-title"><i class="fas fa-sliders-h"></i> Display & Interface</div>
             <div class="setting-row">
@@ -2230,7 +1915,6 @@ tr:last-child td{border-bottom:none}
         </div>
     </div>
 
-    <!-- About / System Info -->
     <div class="card">
         <div class="card-head">
             <div class="card-title"><i class="fas fa-info-circle"></i> About AquaSystem</div>
@@ -2254,7 +1938,6 @@ tr:last-child td{border-bottom:none}
     </div>
 </div>
 
-<!-- ════ SECTION: MANAGER INBOX ════ -->
 <div class="section-panel" id="sec-mgr-inbox">
     <div class="card">
         <div class="card-head">
@@ -2264,7 +1947,6 @@ tr:last-child td{border-bottom:none}
             </button>
         </div>
 
-        <!-- KPI strip -->
         <div class="adm-inbox-strip">
             <div class="adm-inbox-kpi" style="--ikc:var(--amber)">
                 <div class="adm-inbox-kpi-val" id="admKpi-pending">—</div>
@@ -2293,14 +1975,10 @@ tr:last-child td{border-bottom:none}
     <div>PH TIME: <span id="footerTs" style="color:var(--cyan)"><?php echo date('h:i:s A'); ?></span></div>
 </div>
 
-</div><!-- /content -->
-</div><!-- /main -->
-</div><!-- /layout -->
+</div>
+</div>
+</div>
 
-<!--
-  FIX 17: Bottom nav is OUTSIDE .layout entirely
-  This guarantees it is never clipped or blocked by any child stacking context
--->
 <nav class="bottom-nav" id="bottomNav">
     <div class="bnav-item active" id="bn-overview" onclick="showSection('overview')">
         <i class="fas fa-chart-pie"></i>
@@ -2322,7 +2000,6 @@ tr:last-child td{border-bottom:none}
     </div>
 </nav>
 
-<!-- MODALS -->
 <div id="userModal" class="modal">
     <div class="modal-box">
         <div class="modal-head"><div class="modal-title" id="modalTitle">Add New User</div><button class="modal-close" onclick="closeModal('userModal')">&times;</button></div>
@@ -2355,18 +2032,6 @@ tr:last-child td{border-bottom:none}
 </div>
 
 <script>
-// ═══════════════════════════════════════════════
-// JAVASCRIPT CONSTANTS & STATE
-// ═══════════════════════════════════════════════
-// PHP data is encoded to JSON and assigned to JS constants.
-// PONDS       → Live pond data (organic, temp, pH, status) — updated by IoT simulation
-// POND_COORDS → Static map config (name, center, bounds) — never changes at runtime
-// CHART_DATA  → Pre-computed chart data for daily/weekly/monthly periods
-// ADMIN_ID    → Used to prevent admin from deleting own account in JS
-
-// ALL_SECTIONS  → All valid section panel IDs (used by showSection)
-// BNAV_SECTIONS → Only sections that have a bottom nav button
-//                 charts/reports/activities/iot/settings are sidebar-only
 const PONDS       = <?php echo json_encode($ponds_data); ?>;
 const POND_COORDS = <?php echo json_encode($ponds_config); ?>;
 const CHART_DATA  = <?php echo json_encode($chart_data); ?>;
@@ -2378,34 +2043,16 @@ let selectedIds = [];
 let mapInited = false;
 let currentSection = 'overview';
 
-// All valid section names and their bottom nav IDs
-// FIX 18: 'charts', 'reports', 'activities' don't have bnav IDs — that's intentional
-// They are accessible via sidebar only. Bottom nav covers the 5 most-used sections.
 const ALL_SECTIONS = ['overview','users','ponds','map','charts','alerts','reports','activities','iot','settings','mgr-inbox'];
 const BNAV_SECTIONS = ['overview','users','ponds','map','alerts'];
 
-// ═══════════════════════════════════════════════
-// INITIALIZATION — runs when DOM is fully loaded
-// ═══════════════════════════════════════════════
-// initClock()      → Starts a 1-second interval updating all clock elements
-// initChart()      → Creates the Chart.js line chart in sec-charts
-// startSimulation()→ Starts 5-second IoT data simulation interval
-// initMap()        → Called with 300ms delay so the map div has dimensions
 document.addEventListener('DOMContentLoaded', () => {
     initClock();
     initChart();
     startSimulation();
-    // Init map with delay — panel may be hidden on load
     setTimeout(initMap, 300);
 });
 
-// ═══════════════════════════════════════════════
-// SIDEBAR TOGGLE
-// ═══════════════════════════════════════════════
-// toggleSidebar() → Opens or closes the sidebar (mobile only).
-//                   Also toggles the dark overlay behind it.
-// closeSidebar()  → Always closes sidebar + hides overlay.
-//                   Called by overlay click and showSection() on mobile.
 function toggleSidebar() {
     const sb = document.getElementById('sidebar');
     const ov = document.getElementById('sidebarOverlay');
@@ -2423,25 +2070,9 @@ function closeSidebar() {
     document.getElementById('sidebarOverlay').classList.remove('active');
 }
 
-// ═══════════════════════════════════════════════
-// SECTION SWITCHING — showSection(name)
-// ═══════════════════════════════════════════════
-// Controls which dashboard panel is visible.
-// Steps:
-//   1. Hides all section-panel divs, shows the target by name
-//   2. Updates .nav-item.active in sidebar (matches onclick attribute)
-//   3. Updates .bnav-item.active in bottom nav (by id="bn-{name}")
-//   4. Lazy-initializes the Leaflet map if switching to 'map' section
-//   5. Resizes the Chart.js chart if switching to 'charts' section
-//   6. Closes sidebar on mobile (width ≤ 768px)
-//   7. Smooth scrolls to top of page
-//
-// gotoMap(pondKey) → Switches to map section then calls focusPond()
-//                    with a 400ms delay to allow map to render first.
 function showSection(name) {
     currentSection = name;
 
-    // 1. Hide all sections, show target
     ALL_SECTIONS.forEach(s => {
         const el = document.getElementById('sec-' + s);
         if (el) el.classList.remove('active');
@@ -2449,7 +2080,6 @@ function showSection(name) {
     const target = document.getElementById('sec-' + name);
     if (target) target.classList.add('active');
 
-    // 2. Update sidebar active state
     document.querySelectorAll('.nav-item').forEach(item => {
         item.classList.remove('active');
         const oc = item.getAttribute('onclick') || '';
@@ -2458,14 +2088,10 @@ function showSection(name) {
         }
     });
 
-    // 3. Update bottom nav active state
     document.querySelectorAll('.bnav-item').forEach(b => b.classList.remove('active'));
     const bnEl = document.getElementById('bn-' + name);
     if (bnEl) bnEl.classList.add('active');
-    // If this section has no bnav button (charts/reports/activities),
-    // keep last active bnav as-is OR clear all — both are fine UX
 
-    // 4. Handle map initialization
     if (name === 'map') {
         if (map) {
             setTimeout(() => map.invalidateSize(), 150);
@@ -2475,15 +2101,12 @@ function showSection(name) {
         }
     }
 
-    // 5. Handle chart resize
     if (name === 'charts' && metricsChart) {
         setTimeout(() => metricsChart.resize(), 100);
     }
 
-    // 6. Close sidebar on mobile
     if (window.innerWidth <= 768) closeSidebar();
 
-    // 7. Scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -2492,11 +2115,6 @@ function gotoMap(pondKey) {
     setTimeout(() => focusPond(pondKey), 400);
 }
 
-// ═══════════════════════════════════════════════
-// LIVE CLOCK — initClock()
-// ═══════════════════════════════════════════════
-// Updates all clock elements every second using Asia/Manila timezone.
-// Target element IDs: mainClock, topnavClock, mapTs, chartTs, footerTs
 function initClock() {
     setInterval(() => {
         const ph = new Date().toLocaleTimeString('en-US', {
@@ -2514,50 +2132,30 @@ function initClock() {
     }, 1000);
 }
 
-// ═══════════════════════════════════════════════
-// LEAFLET MAP — initMap(), buildPopup(), focusPond()
-// ═══════════════════════════════════════════════
-// initMap()     → Initializes Leaflet map with CartoDB dark tiles.
-//                 Draws color-coded L.polygon for each pond using
-//                 POND_COORDS[key].bounds. Adds floating label markers.
-//                 Retries with setTimeout if #map has no height yet.
-//                 Guard: if (map) return — prevents double initialization.
-//
-// buildPopup()  → Returns HTML string for Leaflet popup.
-//                 Shows status badge, organic/temp/pH grid, staff, location.
-//
-// focusPond()   → Pans map to pond center at zoom 19, opens its popup,
-//                 briefly increases polygon opacity for visual feedback.
-//
-// getColor(s)   → Returns hex color string based on status:
-//                 safe='#39ff8a' | warning='#ffb800' | critical='#ff3b5c'
 function getColor(s) { return s==='safe'?'#39ff8a':(s==='warning'?'#ffb800':'#ff3b5c'); }
 
 function initMap() {
     const mapEl = document.getElementById('map');
     if (!mapEl || mapEl.clientHeight < 5) {
-        // Retry if element not visible yet
         setTimeout(initMap, 400);
         return;
     }
-    if (map) return; // Already inited
+    if (map) return;
 
-    // ── MAP INIT — all zoom interactions disabled (static display mode) ──
     map = L.map('map', {
-        zoomControl:        false,  // hide +/- buttons
-        scrollWheelZoom:    false,  // disable mouse wheel zoom
-        doubleClickZoom:    false,  // disable double-click zoom
-        touchZoom:          false,  // disable pinch zoom on mobile
-        boxZoom:            false,  // disable shift+drag box zoom
-        keyboard:           false,  // disable keyboard zoom (+/-)
-        dragging:           true,   // allow pan (restricted by maxBounds below)
+        zoomControl:        false,
+        scrollWheelZoom:    false,
+        doubleClickZoom:    false,
+        touchZoom:          false,
+        boxZoom:            false,
+        keyboard:           false,
+        dragging:           true,
     }).setView([8.3694, 124.8652], 17);
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         attribution:'&copy; OpenStreetMap &copy; CARTO', subdomains:'abcd', maxZoom:20
     }).addTo(map);
 
-    // Draw all pond polygons
     Object.keys(POND_COORDS).forEach(key => {
         const cfg  = POND_COORDS[key];
         const pond = PONDS[key];
@@ -2585,19 +2183,11 @@ function initMap() {
         L.marker(cfg.center, { icon:lIcon, interactive:false }).addTo(map);
     });
 
-    // ── BOUNDING BOX — compute tight bounds from all 3 polygons ──
     const fg = L.featureGroup(Object.values(polygons));
     if (fg.getBounds().isValid()) {
         const bounds = fg.getBounds();
-
-        // Fit map tightly to all ponds — small pad so labels aren't clipped
         map.fitBounds(bounds.pad(0.08));
-
-        // Lock panning — user cannot drag beyond the pond area
-        // Slightly wider pad than fitBounds so the edge feels natural, not hard-cut
         map.setMaxBounds(bounds.pad(0.18));
-
-        // Prevent zoom from ever changing (lock current zoom level as min+max)
         map.once('moveend', () => {
             const lockedZoom = map.getZoom();
             map.setMinZoom(lockedZoom);
@@ -2628,7 +2218,6 @@ function focusPond(key) {
     const cfg = POND_COORDS[key];
     if (!cfg) return;
     if (polygons[key]) {
-        // Pan to pond center only — zoom is locked, do NOT call setView with zoom level
         map.panTo(cfg.center, { animate:true, duration:0.5 });
         polygons[key].openPopup();
         polygons[key].setStyle({ fillOpacity:0.65 });
@@ -2639,29 +2228,6 @@ function focusPond(key) {
     toast(`Focused: ${cfg.name}`, 'info');
 }
 
-// ═══════════════════════════════════════════════
-// IOT SIMULATION — startSimulation(), updatePondDisplay()
-// ═══════════════════════════════════════════════
-// startSimulation()
-//   Runs every 5 seconds. For each pond in PONDS:
-//   - Randomly drifts organic, temperature, and pH values ±small amount
-//   - Clamps values to realistic ranges (organic: 10-100, temp: 20-38, pH: 5-10)
-//   - Recomputes status based on thresholds
-//   - Updates the PONDS object in-place (so map popups stay current)
-//   - Calls updatePondDisplay() to push new values to the DOM
-//
-// updatePondDisplay(key, o, t, p, status, ts)
-//   Updates all DOM elements associated with a pond:
-//   - ov-o-{key}, ov-t-{key}, ov-p-{key} → live value labels in pond cards
-//   - pb-o-{key} → organic percentage label in progress bar
-//   - pf-o-{key} → progress bar fill width + color
-//   - ov-ts-{key} → last reading timestamp
-//   - pcard-{key}, pcard2-{key} → pond card CSS class (safe/warning/critical)
-//   - polygons[key] → Leaflet polygon stroke + fill color
-//   - Shows critical toast if status === 'critical'
-//
-// refreshPond(key)    → Manual refresh: calls get_iot_reading AJAX action
-// refreshAllPonds()   → Calls refreshPond() for all ponds, spins refresh icon
 function startSimulation() {
     setInterval(() => {
         Object.keys(PONDS).forEach(key => {
@@ -2699,22 +2265,6 @@ function refreshAllPonds() {
     toast('All ponds refreshed','success');
 }
 
-// ═══════════════════════════════════════════════
-// CHART.JS — initChart(), switchPeriod()
-// ═══════════════════════════════════════════════
-// initChart()
-//   Creates a multi-dataset line chart on the canvas #metricsChart.
-//   Three datasets: Organic % (red), Temperature °C (amber), pH (green).
-//   Config: responsive, no legend, custom dark tooltip, no point dots.
-//   Uses CHART_DATA.daily as initial data (PHP-encoded JSON).
-//
-// switchPeriod(period, btn)
-//   Called when user clicks DAILY / WEEKLY / MONTHLY tab buttons.
-//   - Marks clicked button as active
-//   - Shows spinner while fetching
-//   - Sends AJAX get_chart_data with period parameter
-//   - Updates chart.data labels and datasets, calls chart.update()
-//   - Shows info toast confirming period change
 function initChart() {
     const ctx = document.getElementById('metricsChart');
     if (!ctx) return;
@@ -2748,23 +2298,6 @@ function switchPeriod(period, btn) {
     .then(d=>{ metricsChart.data.labels=d.labels; metricsChart.data.datasets[0].data=d.organic; metricsChart.data.datasets[1].data=d.temperature; metricsChart.data.datasets[2].data=d.ph; metricsChart.update(); btn.textContent=orig; toast(`Chart: ${period}`,'info'); });
 }
 
-// ═══════════════════════════════════════════════
-// ALERT ACTIONS — fully DOM-based, no page reload
-// ═══════════════════════════════════════════════
-
-// ── ackAlert(id, btn) ──────────────────────────
-// Acknowledges an alert (status = 'read') without reloading the page.
-// Steps:
-//   1. Shows spinner on button, disables it
-//   2. POSTs acknowledge_alert to PHP
-//   3. On success:
-//      - Removes .al-unread-pip dot from the alert row
-//      - Removes the ACK button (already acknowledged)
-//      - Updates the status badge text from UNREAD → READ
-//      - Updates alert-item data-status attribute for filter to work
-//      - Decrements the unread counter everywhere (badge, kpi strip, filter tabs)
-//      - Shows success toast
-//   4. On error: restores button, shows error toast
 function ackAlert(id, btn) {
     const orig = btn.innerHTML;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
@@ -2778,41 +2311,21 @@ function ackAlert(id, btn) {
             toast(d.message || 'Failed to acknowledge', 'critical');
             return;
         }
-        // Update the alert row DOM — no reload needed
         const row = document.getElementById('alert-' + id);
         if (row) {
-            // Remove unread pip dot
             const pip = row.querySelector('.alert-unread-pip');
             if (pip) pip.remove();
-            // Update status badge
             const sb = document.getElementById('status-badge-' + id);
             if (sb) { sb.className = 'badge badge-read'; sb.textContent = 'READ'; }
-            // Remove ack button (no longer needed)
             btn.remove();
-            // Update data-status so filter continues to work
             row.dataset.status = 'read';
         }
-        // Decrement unread counts
         _updateAlertCounts();
         toast('Alert acknowledged', 'success');
     })
     .catch(() => { btn.innerHTML = orig; btn.disabled = false; toast('Network error', 'critical'); });
 }
 
-// ── resolveAlert(id, btn) ──────────────────────
-// Resolves an alert (status = 'resolved') without reloading the page.
-// Steps:
-//   1. Confirm dialog before resolving
-//   2. Shows spinner, disables button
-//   3. POSTs resolve_alert to PHP
-//   4. On success:
-//      - Fades the alert row slightly (resolved = dimmed)
-//      - Replaces the action buttons with a "Resolved" text badge
-//      - Updates status badge to RESOLVED (green)
-//      - Adds .al-resolved class to the row
-//      - Updates data-status for filter
-//      - Updates all counters
-//      - Shows success toast
 function resolveAlert(id, btn) {
     confirm_('Resolve Alert', 'Mark this alert as resolved?', '✅', () => {
         const orig = btn.innerHTML;
@@ -2829,16 +2342,12 @@ function resolveAlert(id, btn) {
             }
             const row = document.getElementById('alert-' + id);
             if (row) {
-                // Dim the row
                 row.classList.add('al-resolved');
                 row.dataset.status = 'resolved';
-                // Remove unread pip if present
                 const pip = row.querySelector('.alert-unread-pip');
                 if (pip) pip.remove();
-                // Update status badge
                 const sb = document.getElementById('status-badge-' + id);
                 if (sb) { sb.className = 'badge badge-resolved'; sb.textContent = 'RESOLVED'; }
-                // Replace action buttons with resolved label
                 const actions = document.getElementById('actions-' + id);
                 if (actions) {
                     actions.innerHTML = '<span style="font-family:var(--fm);font-size:.65rem;color:var(--green)"><i class="fas fa-check-circle"></i> Resolved</span>';
@@ -2851,11 +2360,6 @@ function resolveAlert(id, btn) {
     });
 }
 
-// ── markAllRead() ──────────────────────────────
-// Acknowledges ALL currently unread alerts in one batch.
-// Loops through every alert row with data-status="unread" and calls ackAlert()
-// with a small delay between each to avoid hammering the server.
-// Disables the "Mark All Read" button while processing.
 function markAllRead() {
     const unreadRows = Array.from(document.querySelectorAll('#alertsList .alert-item[data-status="unread"]'));
     if (!unreadRows.length) { toast('No unread alerts', 'info'); return; }
@@ -2868,7 +2372,6 @@ function markAllRead() {
         const id  = row.id.replace('alert-', '');
         const ackBtn = document.getElementById('btn-ack-' + id);
         setTimeout(() => {
-            // Directly POST without spinner (batch mode)
             fetchPost('acknowledge_alert', `alert_id=${id}`)
             .then(d => {
                 if (!d.success) return;
@@ -2881,7 +2384,7 @@ function markAllRead() {
                 _updateAlertCounts();
             });
         }, delay);
-        delay += 80; // stagger requests 80ms apart
+        delay += 80;
     });
 
     setTimeout(() => {
@@ -2890,18 +2393,11 @@ function markAllRead() {
     }, delay + 200);
 }
 
-// ── filterAlerts(filter, btn) ──────────────────
-// Filters alert rows by type/status without touching the server.
-// filter values: 'all' | 'unread' | 'critical' | 'warning' | 'resolved'
-// Shows/hides .alert-item rows based on their data-type and data-status.
-// Also handles the empty state message visibility.
-// Syncs filter tab active state.
 let _currentFilter = 'all';
 let _currentSearch = '';
 
 function filterAlerts(filter, btn) {
     _currentFilter = filter;
-    // Update active tab
     document.querySelectorAll('.alert-ftab').forEach(t => t.classList.remove('active'));
     if (btn) btn.classList.add('active');
     _applyAlertFilter();
@@ -2921,7 +2417,6 @@ function _applyAlertFilter() {
         const msg    = row.dataset.msg    || '';
         const pond   = row.dataset.pond   || '';
 
-        // Type/status match
         let typeMatch = false;
         switch (_currentFilter) {
             case 'all':      typeMatch = true; break;
@@ -2931,7 +2426,6 @@ function _applyAlertFilter() {
             case 'resolved': typeMatch = status === 'resolved'; break;
         }
 
-        // Search match
         const searchMatch = !_currentSearch ||
             msg.includes(_currentSearch) ||
             pond.toLowerCase().includes(_currentSearch);
@@ -2941,17 +2435,10 @@ function _applyAlertFilter() {
         if (show) visible++;
     });
 
-    // Show empty state if nothing matches
     const empty = document.getElementById('alertEmptyState');
     if (empty) empty.style.display = visible === 0 ? 'block' : 'none';
 }
 
-// ── _updateAlertCounts() ───────────────────────
-// Recomputes all alert counter elements from the current DOM state.
-// Called after every ack/resolve action.
-// Updates: alert badge (topnav + sidebar), KPI strip values,
-//          filter tab counts, and Mark All Read button disabled state.
-// Does NOT require a server call — counts DOM elements directly.
 function _updateAlertCounts() {
     const rows     = Array.from(document.querySelectorAll('#alertsList .alert-item'));
     const total    = rows.length;
@@ -2960,21 +2447,17 @@ function _updateAlertCounts() {
     const warning  = rows.filter(r => r.dataset.type    === 'warning').length;
     const resolved = rows.filter(r => r.dataset.status  === 'resolved').length;
 
-    // Alert badge in card header + sidebar
     const badge = document.getElementById('alertBadge');
     if (badge) badge.textContent = unread + ' NEW';
 
-    // Sidebar badge
     const sb = document.getElementById('sideAlerts');
     if (sb) sb.textContent = unread > 0 ? unread : '';
 
-    // Bottom nav badge
     document.querySelectorAll('#bn-alerts .bnav-badge').forEach(b => {
         b.textContent = unread > 0 ? unread : '';
         b.style.display = unread > 0 ? '' : 'none';
     });
 
-    // KPI strip
     const _kpi = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
     _kpi('akpi-total-val',    total);
     _kpi('akpi-unread-val',   unread);
@@ -2982,30 +2465,21 @@ function _updateAlertCounts() {
     _kpi('akpi-warning-val',  warning);
     _kpi('akpi-resolved-val', resolved);
 
-    // Filter tab counts
     _kpi('fc-all',      total);
     _kpi('fc-unread',   unread);
     _kpi('fc-critical', critical);
     _kpi('fc-warning',  warning);
     _kpi('fc-resolved', resolved);
 
-    // Mark All Read button
     const marAllBtn = document.getElementById('btnMarkAll');
     if (marAllBtn) marAllBtn.disabled = unread === 0;
 }
 
-// ── alertItemClick(e, pondName) ────────────────
-// Handles click on the alert row itself (not on buttons inside it).
-// Navigates to the map section and focuses the relevant pond.
-// Ignores clicks that originated from a button inside the row.
 function alertItemClick(e, pondName) {
-    if (e.target.closest('.btn')) return; // button click — don't navigate
+    if (e.target.closest('.btn')) return;
     gotoMap(pondName);
 }
 
-// ── Relative time updater ──────────────────────
-// Updates the "X min ago" relative timestamps in alert rows every 30 seconds.
-// Finds all elements with data-ts attribute and computes elapsed time.
 (function initAlertRelativeTimes() {
     function updateTimes() {
         const now = Math.floor(Date.now() / 1000);
@@ -3023,33 +2497,6 @@ function alertItemClick(e, pondName) {
     setInterval(updateTimes, 30000);
 })();
 
-// ═══════════════════════════════════════════════
-// USER MANAGEMENT
-// ═══════════════════════════════════════════════
-// filterUsers()
-//   Filters both the desktop table rows and mobile cards simultaneously.
-//   Checks: name/email text match, role dropdown, status dropdown.
-//   Hides non-matching rows via display:'none' (not DOM removal).
-//   Calls updateSel() after filter to fix selection count.
-//
-// toggleAll()
-//   Checks/unchecks all .ubox checkboxes based on selectAll state.
-//   Then calls updateSel() to sync the button states.
-//
-// updateSel()
-//   Reads all checked .ubox values into selectedIds array.
-//   Updates the "N selected" counter and enables/disables bulk action buttons.
-//
-// bulkDo(type)
-//   Shows confirmation dialog, then POSTs bulk_action with JSON array of IDs.
-//   Admin's own ID is always excluded server-side (safety check in PHP too).
-//
-// openAddUser()    → Resets form fields, shows Add modal
-// openEditUser(id) → Fetches user data via get_user AJAX, populates form, shows Edit modal
-// saveUser()       → Submits form via AJAX (add_user or edit_user based on uid field)
-// doDeactivate(id) → Confirm → deactivate_user AJAX → reload
-// doActivate(id)   → Confirm → activate_user AJAX → reload
-// doDelete(id)     → Confirm → delete_user AJAX → reload
 function filterUsers() {
     const q=document.getElementById('userSearch').value.toLowerCase();
     const role=document.getElementById('roleFilter').value;
@@ -3089,94 +2536,23 @@ function doDeactivate(id){ confirm_('Deactivate User','Deactivate this user?','�
 function doActivate(id){ confirm_('Activate User','Activate this user?','✅',()=>{ fetchPost('activate_user',`user_id=${id}`).then(d=>{toast(d.message,'success');setTimeout(()=>location.reload(),600);}); }); }
 function doDelete(id){ confirm_('Delete User','Permanently delete this user?','🗑️',()=>{ fetchPost('delete_user',`user_id=${id}`).then(d=>{toast(d.message,d.success?'success':'critical');if(d.success)setTimeout(()=>location.reload(),600);}); }); }
 
-// ═══════════════════════════════════════════════
-// POND DETAIL MODAL — showPondModal(key)
-// ═══════════════════════════════════════════════
-// Opens the #pondModal with detailed information for a specific pond.
-// Reads live values from the PONDS[key] object (updated by IoT simulation).
-// Builds innerHTML dynamically with:
-//   - Status badge with blinking dot
-//   - 3-column metrics grid (organic, temp, pH) with animated meter bars
-//   - Detail rows: staff, location, coordinates, last reading timestamp
-//   - Two action buttons: "Map" (navigates to map tab) and "Refresh"
-// mc (meter class) is computed from organic_level for color-coding the bar fill.
 function showPondModal(key){ const pond=PONDS[key],cfg=POND_COORDS[key]; if(!pond||!cfg) return; const color=getColor(pond.status),mc=pond.organic_level>80?'meter-critical':(pond.organic_level>60?'meter-warning':'meter-safe'); document.getElementById('pondModalTitle').innerHTML=`<i class="fas fa-map-marker-alt" style="color:${color}"></i> ${cfg.name}`; document.getElementById('pondModalBody').innerHTML=`<div style="text-align:center;margin-bottom:.9rem"><span class="badge badge-${pond.status}" style="font-size:.8rem;padding:.4rem 1rem"><span class="dot-blink"></span> ${pond.status.toUpperCase()}</span></div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.7rem;margin-bottom:1rem"><div style="text-align:center;padding:.85rem .4rem;background:var(--bg-elevated);border-radius:var(--r-md);border:1px solid var(--bdr)"><i class="fas fa-seedling ic-organic" style="font-size:1.3rem;display:block;margin-bottom:.3rem"></i><div class="metric-val ic-organic" style="font-size:1.3rem">${pond.organic_level}%</div><div class="metric-lbl">Organic</div><div class="meter" style="margin-top:.4rem"><div class="meter-fill ${mc}" style="width:${pond.organic_level}%"></div></div></div><div style="text-align:center;padding:.85rem .4rem;background:var(--bg-elevated);border-radius:var(--r-md);border:1px solid var(--bdr)"><i class="fas fa-thermometer-half ic-temp" style="font-size:1.3rem;display:block;margin-bottom:.3rem"></i><div class="metric-val ic-temp" style="font-size:1.3rem">${pond.temperature}°C</div><div class="metric-lbl">Temp</div><div class="meter" style="margin-top:.4rem"><div class="meter-fill meter-warning" style="width:${Math.min(100,(pond.temperature-20)*10)}%"></div></div></div><div style="text-align:center;padding:.85rem .4rem;background:var(--bg-elevated);border-radius:var(--r-md);border:1px solid var(--bdr)"><i class="fas fa-flask ic-ph" style="font-size:1.3rem;display:block;margin-bottom:.3rem"></i><div class="metric-val ic-ph" style="font-size:1.3rem">${pond.ph}</div><div class="metric-lbl">pH</div><div class="meter" style="margin-top:.4rem"><div class="meter-fill meter-safe" style="width:${Math.min(100,pond.ph*10)}%"></div></div></div></div><div class="pond-detail-grid"><div class="detail-row"><div class="detail-lbl">Staff</div><div class="detail-val"><i class="fas fa-user" style="color:var(--cyan)"></i> ${pond.staff}</div></div><div class="detail-row"><div class="detail-lbl">Location</div><div class="detail-val"><i class="fas fa-map-pin" style="color:var(--red)"></i> ${pond.location}</div></div><div class="detail-row"><div class="detail-lbl">Coordinates</div><div class="detail-val" style="font-family:var(--fm);font-size:.75rem">${cfg.center[0].toFixed(4)}, ${cfg.center[1].toFixed(4)}</div></div><div class="detail-row"><div class="detail-lbl">Last Reading</div><div class="detail-val" style="font-family:var(--fm);font-size:.75rem">${new Date().toLocaleTimeString('en-US',{hour12:true,timeZone:'Asia/Manila'})}</div></div></div><div style="display:flex;gap:.5rem;margin-top:1rem"><button class="btn btn-primary btn-sm" style="flex:1" onclick="closeModal('pondModal');gotoMap('${key}')"><i class="fas fa-map-marker-alt"></i> Map</button><button class="btn btn-ghost btn-sm" style="flex:1" onclick="refreshPond('${key}');closeModal('pondModal')"><i class="fas fa-sync-alt"></i> Refresh</button></div>`; openModal('pondModal'); }
 
-// ═══════════════════════════════════════════════
-// REPORT GENERATION — genReport(type, btn)
-// ═══════════════════════════════════════════════
-// Called when user clicks Daily / Weekly / Monthly report type button.
-// Steps:
-//   1. Marks clicked button as active (removes from others)
-//   2. POSTs generate_report with type parameter
-//   3. Builds the #rptPreview innerHTML dynamically with:
-//      - Report header with type label and date badge
-//      - Stats grid (total ponds, alerts, active staff)
-//      - Status distribution row (safe/warning/critical counts) — daily only
-//      - Or readings/incidents/resolved stats — weekly/monthly
-//      - Metrics mini row (avg organic, avg temp, avg pH)
-//      - Download row with PDF, Excel, CSV buttons (simulation only)
-//   4. Shows success toast confirming report was generated
 function genReport(type,btn){ document.querySelectorAll('.rpt-type-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); fetchPost('generate_report',`type=${type}`).then(d=>{ if(!d.success) return; const r=d.report,labels={daily:'Daily Report',weekly:'Weekly Report',monthly:'Monthly Report'},dates={daily:'<?php echo date('M d, Y'); ?>',weekly:r.week||'',monthly:r.month||''}; const preview=document.getElementById('rptPreview'); preview.innerHTML=`<div class="rpt-header"><div class="rpt-title"><i class="fas fa-chart-bar" style="color:var(--cyan)"></i> ${labels[type]}</div><div class="rpt-date-badge">${dates[type]}</div></div>${type==='daily'?`<div class="rpt-stats"><div class="rpt-stat"><div class="rpt-stat-val">${r.total_ponds}</div><div class="rpt-stat-lbl">Total Ponds</div></div><div class="rpt-stat"><div class="rpt-stat-val" style="color:var(--red)">${r.alerts_generated}</div><div class="rpt-stat-lbl">Alerts</div></div><div class="rpt-stat"><div class="rpt-stat-val" style="color:var(--green)">${r.staff_active}</div><div class="rpt-stat-lbl">Active Staff</div></div></div><div class="rpt-status-row"><div class="rpt-status-item"><div class="rpt-status-val" style="color:var(--green)">${r.safe_ponds}</div><div class="rpt-status-lbl" style="color:var(--green)">Safe</div></div><div class="rpt-status-item"><div class="rpt-status-val" style="color:var(--amber)">${r.warning_ponds}</div><div class="rpt-status-lbl" style="color:var(--amber)">Warning</div></div><div class="rpt-status-item"><div class="rpt-status-val" style="color:var(--red)">${r.critical_ponds}</div><div class="rpt-status-lbl" style="color:var(--red)">Critical</div></div></div>`:`<div class="rpt-stats"><div class="rpt-stat"><div class="rpt-stat-val">${r.total_readings}</div><div class="rpt-stat-lbl">Readings</div></div><div class="rpt-stat"><div class="rpt-stat-val" style="color:var(--amber)">${r.incidents}</div><div class="rpt-stat-lbl">Incidents</div></div><div class="rpt-stat"><div class="rpt-stat-val" style="color:var(--green)">${r.resolved}</div><div class="rpt-stat-lbl">Resolved</div></div></div>`}<div class="metrics-mini"><div class="metric-mini"><i class="fas fa-seedling ic-organic"></i><div><div class="metric-mini-val">${r.avg_organic}%</div><div class="metric-mini-lbl">Avg Organic</div></div></div><div class="metric-mini"><i class="fas fa-thermometer-half ic-temp"></i><div><div class="metric-mini-val">${r.avg_temp}°C</div><div class="metric-mini-lbl">Avg Temp</div></div></div><div class="metric-mini"><i class="fas fa-flask ic-ph"></i><div><div class="metric-mini-val">${r.avg_ph}</div><div class="metric-mini-lbl">Avg pH</div></div></div></div><div class="rpt-dl-row"><button class="btn btn-sm" style="flex:1;background:rgba(255,59,92,.12);color:var(--red);border:1px solid rgba(255,59,92,.25)" onclick="toast('PDF downloaded','success')"><i class="fas fa-file-pdf"></i> PDF</button><button class="btn btn-sm" style="flex:1;background:rgba(57,255,138,.12);color:var(--green);border:1px solid rgba(57,255,138,.25)" onclick="toast('Excel downloaded','success')"><i class="fas fa-file-excel"></i> Excel</button><button class="btn btn-sm" style="flex:1;background:rgba(255,184,0,.12);color:var(--amber);border:1px solid rgba(255,184,0,.25)" onclick="toast('CSV downloaded','success')"><i class="fas fa-file-csv"></i> CSV</button></div>`; toast(`${labels[type]} generated`,'success'); }); }
 
-// ═══════════════════════════════════════════════
-// MODAL HELPERS
-// ═══════════════════════════════════════════════
-// openModal(id)   → Adds .open class to modal element, making it display:flex
-// closeModal(id)  → Removes .open class, hiding the modal
-//
-// Click-outside-to-close: event listener on each .modal element.
-//   If user clicks the backdrop (e.target === modal), calls closeModal().
-//
-// Escape key: document keydown listener closes all open modals.
-//
-// confirm_(title, msg, icon, cb)
-//   Reusable confirmation dialog using #confirmModal.
-//   Sets the title, message text, and emoji icon.
-//   Assigns the callback to #confirmOk onclick.
-//   Closes the modal before executing the callback.
-//   Used by: doDeactivate, doActivate, doDelete, bulkDo, confirmLogout
 function openModal(id){ document.getElementById(id).classList.add('open'); }
 function closeModal(id){ document.getElementById(id).classList.remove('open'); }
 document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeModal(m.id);}));
 document.addEventListener('keydown',e=>{if(e.key==='Escape') document.querySelectorAll('.modal.open').forEach(m=>m.classList.remove('open'));});
 function confirm_(title,msg,icon,cb){ document.getElementById('confirmTitle').textContent=title; document.getElementById('confirmMsg').textContent=msg; document.getElementById('confirmIcon').textContent=icon||'⚠️'; document.getElementById('confirmOk').onclick=()=>{closeModal('confirmModal');cb&&cb();}; openModal('confirmModal'); }
 
-// ═══════════════════════════════════════════════
-// TOAST NOTIFICATIONS — toast(msg, type)
-// ═══════════════════════════════════════════════
-// Displays a temporary notification in the top-right corner.
-// Parameters:
-//   msg  → Text to display
-//   type → 'success' | 'warning' | 'critical' | 'info'  (default: 'info')
-// Behavior:
-//   - Creates a .toast div, appends to #toastWrap
-//   - Auto-removes after 3.5 seconds with fade-out animation
-//   - Multiple toasts stack vertically (flex-column gap)
-//   - z-index:10001 ensures toasts appear above modals
 function toast(msg,type='info'){ const c=document.getElementById('toastWrap'),t=document.createElement('div'); t.className=`toast ${type}`; const icons={success:'check-circle',warning:'exclamation-triangle',critical:'times-circle',info:'info-circle'}; t.innerHTML=`<i class="fas fa-${icons[type]||'info-circle'}"></i> ${msg}`; c.appendChild(t); setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(50px)';t.style.transition='.3s';setTimeout(()=>t.remove(),300);},3500); }
 
-// ═══════════════════════════════════════════════
-// FETCH HELPER — fetchPost(action, body)
-// ═══════════════════════════════════════════════
-// Wrapper for all AJAX requests in this dashboard.
-// Always POSTs to '' (same file URL) with Content-Type: application/x-www-form-urlencoded.
-// Automatically prepends 'action=' to the body string.
-// Returns a Promise that resolves to parsed JSON.
-// Usage: fetchPost('delete_user', `user_id=${id}`).then(d => { ... })
 function fetchPost(action,body=''){return fetch('',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:`action=${action}${body?'&'+body:''}`}).then(r=>r.json());}
-
-// ═══════════════════════════════════════════════
-// ADMIN: MANAGER → ADMIN NOTIFICATION INBOX
-// ═══════════════════════════════════════════════
 
 const ADM_PRIORITY_COLORS = {low:'pri-low',normal:'pri-normal',high:'pri-high',critical:'pri-critical'};
 const ADM_PRIORITY_LABELS = {low:'Low',normal:'Normal',high:'High',critical:'CRITICAL'};
 
-// ── loadAdminMgrNotifs() ───────────────────────
-// Fetches all manager notifications, renders inbox list + KPI strip.
-// Any notification still "Pending" is auto-marked "Received" when admin views it.
-// Called on section open and every 30s poll.
 function loadAdminMgrNotifs() {
     const icon = document.getElementById('admInboxRefreshIcon');
     if (icon) icon.style.animation = 'spin 1s linear infinite';
@@ -3189,7 +2565,6 @@ function loadAdminMgrNotifs() {
 
         const notifs = d.notifications || [];
 
-        // KPI counts
         const pending   = notifs.filter(n => n.status === 'Pending').length;
         const received  = notifs.filter(n => n.status === 'Received').length;
         const completed = notifs.filter(n => n.status === 'Completed').length;
@@ -3199,11 +2574,9 @@ function loadAdminMgrNotifs() {
         _kpi('admKpi-received',  received);
         _kpi('admKpi-completed', completed);
 
-        // Update sidebar badge
         const badge = document.getElementById('admInboxBadge');
         if (badge) { badge.textContent = pending > 0 ? pending : ''; badge.style.display = pending > 0 ? '' : 'none'; }
 
-        // Auto-mark all Pending → Received (admin just viewed them)
         notifs.forEach(n => {
             if (n.status === 'Pending') {
                 fetchPost('mark_notif_received', `notif_id=${n.id}`).catch(() => {});
@@ -3221,7 +2594,6 @@ function loadAdminMgrNotifs() {
         list.innerHTML = notifs.map(n => {
             const priorClass = ADM_PRIORITY_COLORS[n.priority] || 'pri-normal';
             const priorLabel = ADM_PRIORITY_LABELS[n.priority] || n.priority;
-            // Auto-update displayed status (Pending → Received since admin is viewing)
             const displayStatus = n.status === 'Pending' ? 'Received' : n.status;
 
             const sentTime  = new Date(n.sent_at).toLocaleString('en-US',{timeZone:'Asia/Manila',hour12:true,month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
@@ -3269,9 +2641,6 @@ function loadAdminMgrNotifs() {
     .catch(() => { if (icon) icon.style.animation = ''; });
 }
 
-// ── markNotifDone(id) ──────────────────────────
-// Admin marks a notification as Completed.
-// Reads optional note from the input, sends to PHP, updates DOM in place.
 function markNotifDone(id) {
     const noteEl = document.getElementById('note-' + id);
     const note   = noteEl ? noteEl.value.trim() : '';
@@ -3281,21 +2650,17 @@ function markNotifDone(id) {
         .then(d => {
             if (!d.success) { toast(d.message || 'Failed', 'critical'); return; }
             toast('Marked as Completed — manager will see the update.', 'success');
-            loadAdminMgrNotifs(); // Re-render the whole list
+            loadAdminMgrNotifs();
         })
         .catch(() => toast('Network error', 'critical'));
     });
 }
 
-// ── _admEsc() ──────────────────────────────────
-// XSS-safe HTML escaping for dynamically rendered admin notification content.
 function _admEsc(str) {
     if (!str) return '';
     return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// ── Poll pending count every 60s (even when inbox not open) ──
-// Keeps the sidebar badge updated so admin sees new requests immediately.
 function _pollAdmInboxBadge() {
     fetchPost('get_pending_mgr_count')
     .then(d => {
@@ -3309,44 +2674,21 @@ function _pollAdmInboxBadge() {
 }
 setInterval(_pollAdmInboxBadge, 60000);
 
-// ── Auto-load when navigating to mgr-inbox section ──
-// NOTE: The actual showSection override is merged below with maybeInitIot
-// to avoid double-wrapping conflicts. Both hooks (mgr-inbox + iot) are
-// handled in ONE override at the bottom of this file.
-
-// ── Auto-poll every 30s when inbox section is open ──
 setInterval(() => {
     if (document.getElementById('sec-mgr-inbox')?.classList.contains('active')) {
         loadAdminMgrNotifs();
     }
 }, 30000);
 
-// ── Load badge on page load ──
 document.addEventListener('DOMContentLoaded', () => { _pollAdmInboxBadge(); });
 
-// Resize on window change
 window.addEventListener('resize',()=>{if(map)setTimeout(()=>map.invalidateSize(),100);if(metricsChart)metricsChart.resize();});
 window.addEventListener('orientationchange',()=>{setTimeout(()=>{if(map)map.invalidateSize();if(metricsChart)metricsChart.resize();},350);});
 
-// Auto-dismiss system alert
 (function(){ const a=document.getElementById('sysAlert'); if(a) setTimeout(()=>{a.style.opacity='0';a.style.transition='.4s';setTimeout(()=>a.remove(),400);},5000); })();
 
-// ═══════════════════════════════════════════════
-// SESSION TIMER — initSessionTimer(), updateSessionDuration()
-// ═══════════════════════════════════════════════
-// initSessionTimer()
-//   Counts down from sessionTotal (default 30 min) every second.
-//   Updates #sessionBar progress fill width and #sessionTime countdown text.
-//   At 2 minutes remaining: adds .warning class (bar turns red, blinks),
-//     sets sessionWarned=true so the toast only fires once.
-//   At 0 seconds: shows critical toast and redirects to logout after 2s.
-//
-// updateSessionDuration()
-//   Called when user changes the Session Timeout range slider in Settings.
-//   Resets sessionTotal, sessionLeft, and sessionWarned.
-//   Removes .warning class from the bar if it was previously triggered.
-let sessionTotal  = 30 * 60; // 30 minutes default in seconds
-let sessionLeft   = sessionTotal;
+let sessionTotal = 1800;
+let sessionLeft = sessionTotal;
 let sessionWarned = false;
 
 function initSessionTimer() {
@@ -3384,14 +2726,6 @@ function updateSessionDuration() {
     if (bar) bar.classList.remove('warning');
 }
 
-// ═══════════════════════════════════════════════
-// NETWORK STATUS — initNetworkStatus()
-// ═══════════════════════════════════════════════
-// Listens for browser 'offline' and 'online' events.
-// 'offline' → Shows a fixed red banner at the top: "No internet connection"
-// 'online'  → Shows green banner "Connection restored", then hides it after 3s.
-// Banner element: #netBanner (position:fixed, z-index:8000)
-// Does not affect functionality — AJAX will simply fail silently when offline.
 function initNetworkStatus() {
     const banner = document.getElementById('netBanner');
     if (!banner) return;
@@ -3408,16 +2742,6 @@ function initNetworkStatus() {
     });
 }
 
-// ═══════════════════════════════════════════════
-// KEYBOARD SHORTCUTS — initKeyboardShortcuts()
-// ═══════════════════════════════════════════════
-// Adds Alt + number shortcuts for quick section navigation (desktop only).
-// Shortcuts are disabled when a modal is open (prevents accidental navigation).
-// Mapping:
-//   Alt+1 → Overview    Alt+2 → Users       Alt+3 → Ponds
-//   Alt+4 → Map         Alt+5 → Charts      Alt+6 → Alerts
-//   Alt+7 → Reports     Alt+8 → Activities  Alt+9 → IOT Panel
-//   Alt+0 → Settings
 function initKeyboardShortcuts() {
     document.addEventListener('keydown', e => {
         if (document.querySelector('.modal.open')) return;
@@ -3430,15 +2754,6 @@ function initKeyboardShortcuts() {
     });
 }
 
-// ═══════════════════════════════════════════════
-// SWIPE GESTURES — initSwipeGestures()
-// ═══════════════════════════════════════════════
-// Enables swipe-to-open-sidebar on mobile devices.
-// Records touchstart X,Y position, then on touchend:
-//   - If swipe distance > 70px horizontal AND < 60px vertical:
-//     - Swipe right from left edge (startX < 30) → opens sidebar
-//     - Swipe left while sidebar is open → closes sidebar
-// Uses passive event listeners for better scroll performance.
 function initSwipeGestures() {
     let startX = 0, startY = 0;
     document.addEventListener('touchstart', e => {
@@ -3458,23 +2773,6 @@ function initSwipeGestures() {
     }, { passive: true });
 }
 
-// ═══════════════════════════════════════════════
-// IOT MINI CHARTS — initIotCharts(), loadPondHistory()
-// ═══════════════════════════════════════════════
-// initIotCharts()
-//   Called lazily the first time the IOT Panel section is opened.
-//   Creates a small Chart.js line chart for each pond (canvas #iotChart-{key}).
-//   Chart config: 3 datasets (organic=green, temp=amber, pH=violet),
-//   no axes visible, responsive, 85px height.
-//   Immediately calls loadPondHistory() after chart is created.
-//
-// loadPondHistory(key)
-//   POSTs get_pond_history for a specific pond key.
-//   On success:
-//     - Updates chart data and calls chart.update()
-//     - Rebuilds the tbody of #iotTbody-{key} with a row per reading
-//     - Updates the live value chips (#iot-o-{key}, #iot-t-{key}, #iot-p-{key})
-//       with the most recent value (last item in array)
 const iotCharts = {};
 
 function initIotCharts() {
@@ -3520,7 +2818,6 @@ function loadPondHistory(key) {
             ch.data.datasets[2].data = h.ph;
             ch.update();
         }
-        // Update table
         const tbody = document.getElementById('iotTbody-' + key);
         if (tbody && h.labels.length) {
             tbody.innerHTML = h.labels.map((lbl, i) => `
@@ -3531,7 +2828,6 @@ function loadPondHistory(key) {
                     <td style="color:var(--violet)">${h.ph[i]}</td>
                 </tr>`).join('');
         }
-        // Update live values
         const o = document.getElementById('iot-o-' + key);
         const t = document.getElementById('iot-t-' + key);
         const p = document.getElementById('iot-p-' + key);
@@ -3541,19 +2837,6 @@ function loadPondHistory(key) {
     });
 }
 
-// ═══════════════════════════════════════════════
-// SYSTEM STATS — loadSysStats()
-// ═══════════════════════════════════════════════
-// POSTs get_system_stats to the PHP backend.
-// Shows a spinning animation on #sysRefreshIcon while loading.
-// On success, updates these elements in the System Status card:
-//   #ssStat-php    → PHP version (e.g. "PHP 8.2.0")
-//   #ssStat-mem    → Current memory usage in MB
-//   #ssStat-users  → Total user count from DB
-//   #ssStat-ponds  → Total pond count from DB
-//   #ssStat-reads  → Readings in the last 24 hours
-//   #ssStat-alerts → Unread notification count
-//   #ssStat-time   → Server timestamp in PH time format
 function loadSysStats() {
     const icon = document.getElementById('sysRefreshIcon');
     if (icon) icon.style.animation = 'spin 1s linear infinite';
@@ -3573,21 +2856,6 @@ function loadSysStats() {
     });
 }
 
-// ═══════════════════════════════════════════════
-// CSV EXPORT — exportCSV(type)
-// ═══════════════════════════════════════════════
-// Client-side CSV generation (no server request needed).
-// Data comes from PHP-inlined values at page render time.
-// Supported types:
-//   'ponds'  → Pond key, status, organic%, temp, pH, staff, location, last reading
-//   'alerts' → Pond, message, status, type, created_at
-//   'users'  → Name, email, role, status, assigned pond, last login
-// Process:
-//   1. Builds CSV string with header row + data rows
-//   2. Creates a Blob with type 'text/csv'
-//   3. Creates a temporary <a> with download attribute and clicks it
-//   4. Revokes the object URL to free memory
-//   5. Shows success toast with the filename
 function exportCSV(type) {
     let csv = '', filename = '';
 
@@ -3622,28 +2890,6 @@ function exportCSV(type) {
     toast(`Exported: ${filename}`, 'success');
 }
 
-// ═══════════════════════════════════════════════
-// SETTINGS HANDLERS
-// ═══════════════════════════════════════════════
-// saveSetting()
-//   Called on any toggle/range change in the Settings section.
-//   Reads current values of all setting inputs and POSTs to save_settings.
-//   Settings are stored in $_SESSION on the server side.
-//   Shows success toast on save.
-//
-// toggleSimulation()
-//   Reads the IOT Simulation toggle state.
-//   Sets simulationRunning flag — NOTE: does not actually stop the setInterval.
-//   (The interval still runs, but a full implementation would clearInterval.)
-//
-// toggleAnimation()
-//   Pauses/resumes all CSS animations on the page by setting
-//   animationPlayState on every DOM element.
-//   Also sets a CSS variable --anim-state for future use.
-//
-// confirmLogout()
-//   Shows the confirm dialog, then redirects to logout.php on confirm.
-//   Bypasses the standard PHP confirm() since this is AJAX-aware.
 let simulationRunning = true;
 let simulationInterval = null;
 
@@ -3680,21 +2926,6 @@ function confirmLogout() {
     });
 }
 
-// ═══════════════════════════════════════════════
-// IOT LAZY INITIALIZATION — maybeInitIot()
-// ═══════════════════════════════════════════════
-// IOT charts and system stats are NOT loaded on page load.
-// They are initialized only on the first visit to the IOT Panel section.
-// This improves initial page load time significantly.
-// iotInited flag prevents double initialization on subsequent visits.
-
-// ═══════════════════════════════════════════════
-// showSection OVERRIDE
-// ═══════════════════════════════════════════════
-// The original showSection() is wrapped to inject maybeInitIot().
-// This is a hook pattern — _origShowSection holds the original function,
-// and the new showSection calls it first, then runs the hook.
-// Allows adding section-specific init logic without modifying showSection.
 let iotInited = false;
 
 function maybeInitIot(name) {
@@ -3705,11 +2936,6 @@ function maybeInitIot(name) {
     }
 }
 
-// ═══════════════════════════════════════════════
-// OVERRIDE showSection — single merged hook
-// Handles BOTH iot lazy-init AND mgr-inbox load.
-// ONE override only — prevents double-wrap bugs.
-// ═══════════════════════════════════════════════
 const _origShowSection = showSection;
 showSection = function(name) {
     _origShowSection(name);
@@ -3717,14 +2943,6 @@ showSection = function(name) {
     if (name === 'mgr-inbox') loadAdminMgrNotifs();
 };
 
-// ═══════════════════════════════════════════════
-// SECONDARY BOOT — runs after DOMContentLoaded
-// ═══════════════════════════════════════════════
-// These run after the primary DOMContentLoaded block above.
-// initSessionTimer()     → Starts the 30-minute session countdown bar
-// initNetworkStatus()    → Attaches online/offline event listeners
-// initKeyboardShortcuts()→ Attaches Alt+1-0 keyboard nav shortcuts
-// initSwipeGestures()    → Attaches touchstart/touchend for sidebar swipe
 document.addEventListener('DOMContentLoaded', () => {
     initSessionTimer();
     initNetworkStatus();
@@ -3732,13 +2950,6 @@ document.addEventListener('DOMContentLoaded', () => {
     initSwipeGestures();
 });
 
-// ═══════════════════════════════════════════════
-// SEARCH HIGHLIGHT — highlightText()
-// ═══════════════════════════════════════════════
-// Wraps matching text in <mark> tags for visual highlight in search results.
-// Stores original text in dataset.origText to allow restore when query is cleared.
-// Uses a RegExp with 'gi' flags (global + case-insensitive) for matching.
-// Called from the userSearch input listener for both desktop table and mobile cards.
 function highlightText(el, query) {
     if (!el || !query) return;
     const orig = el.dataset.origText || el.textContent;
@@ -3748,21 +2959,10 @@ function highlightText(el, query) {
     el.innerHTML = orig.replace(re, '<mark style="background:rgba(0,229,255,.3);color:var(--cyan);border-radius:2px;padding:0 2px">$1</mark>');
 }
 
-// ═══════════════════════════════════════════════
-// IDLE DETECTION — auto-warns after 5 min inactivity
-// ═══════════════════════════════════════════════
-// Wrapped in an IIFE so idleTimer and idleWarn are private (not global).
-// resetIdle() is called on any of these user events:
-//   mousedown, mousemove, keydown, touchstart, scroll
-// If no activity for 5 minutes (IDLE_LIMIT = 300,000ms):
-//   - Sets idleWarn = true (prevents duplicate toasts)
-//   - Shows a warning toast: "You've been idle for 5 minutes"
-// Activity resets the timer — idleWarn is cleared on next user interaction.
-// Does NOT log out — only warns. Session timer handles actual logout.
 (function() {
     let idleTimer = null;
     let idleWarn  = false;
-    const IDLE_LIMIT = 5 * 60 * 1000; // 5 minutes
+    const IDLE_LIMIT = 5 * 60 * 1000;
 
     function resetIdle() {
         if (idleWarn) { idleWarn = false; }
@@ -3781,41 +2981,20 @@ function highlightText(el, query) {
     resetIdle();
 })();
 
-// ═══════════════════════════════════════════════
-// USER SEARCH HIGHLIGHT LISTENER
-// ═══════════════════════════════════════════════
-// Attaches to #userSearch input (oninput event).
-// On each keystroke, calls highlightText() on:
-//   - Desktop: all <td> cells in column 2 of #usersTable tbody
-//   - Mobile: all .umc-name elements in mobile cards
-// Works alongside filterUsers() (which handles show/hide logic separately).
-// Both functions share the same search input — one filters rows, one highlights text.
 (function() {
     const searchInput = document.getElementById('userSearch');
     if (!searchInput) return;
     searchInput.addEventListener('input', function() {
         const q = this.value.toLowerCase();
-        // Highlight matching names in desktop table
         document.querySelectorAll('#usersTable tbody tr td:nth-child(2)').forEach(td => {
             highlightText(td, q);
         });
-        // Highlight in mobile cards
         document.querySelectorAll('.umc-name').forEach(el => {
             highlightText(el, q);
         });
     });
 })();
 
-// ═══════════════════════════════════════════════
-// RIPPLE CLICK EFFECT — pond/staff/KPI cards
-// ═══════════════════════════════════════════════
-// Event-delegated click listener on the whole document.
-// Targets: .pond-card, .staff-card, .kpi
-// On click, creates a circular <span> that expands from click position
-// using a CSS @keyframes animation (rippleAnim, injected via a <style> tag).
-// The span is removed from DOM after 500ms (animation duration).
-// Uses getBoundingClientRect() to compute click position relative to card.
-// Adds position:relative to card if it was static (required for absolute child).
 document.addEventListener('click', function(e) {
     const card = e.target.closest('.pond-card, .staff-card, .kpi');
     if (!card) return;
@@ -3836,26 +3015,14 @@ document.addEventListener('click', function(e) {
     setTimeout(() => ripple.remove(), 500);
 });
 
-// Add ripple keyframe once
 (function() {
     const s = document.createElement('style');
     s.textContent = '@keyframes rippleAnim{0%{transform:scale(0);opacity:1}100%{transform:scale(2.5);opacity:0}}';
     document.head.appendChild(s);
 })();
 
-// ═══════════════════════════════════════════════
-// PAGE VISIBILITY API — silent refresh on tab focus
-// ═══════════════════════════════════════════════
-// Listens for the browser's visibilitychange event.
-// When the user returns to this tab (visibilityState === 'visible'):
-//   - Silently calls get_iot_reading for every pond in PONDS
-//   - Calls updatePondDisplay() if response is successful
-//   - Errors are caught and silently ignored (.catch(() => {}))
-// This keeps pond data fresh even if the user switches tabs for a long time.
-// Does NOT show a toast or spinner — completely transparent to the user.
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
-        // Silently refresh ponds when user returns to tab
         Object.keys(PONDS).forEach(key => {
             fetchPost('get_iot_reading', `pond_key=${key}`)
             .then(d => {
@@ -3868,12 +3035,6 @@ document.addEventListener('visibilitychange', () => {
     }
 });
 
-// ═══════════════════════════════════════════════
-// CONSOLE BRANDING
-// ═══════════════════════════════════════════════
-// Styled console output visible in browser DevTools (F12 > Console).
-// Helps developers identify the system and remember available shortcuts.
-// Uses %c CSS formatting supported in Chrome, Firefox, and Edge.
 console.log('%c ██████╗  ██████╗ ', 'color:#00e5ff;font-weight:bold');
 console.log('%c AquaAdmin v2.0 — Organic Matter Detection in Tilapia', 'color:#39ff8a;font-size:13px;font-weight:bold');
 console.log('%c Manolo Fortich, Bukidnon, Philippines', 'color:#8ba8c4');
