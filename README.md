@@ -127,11 +127,43 @@ All ponds are located in **Manolo Fortich, Bukidnon, Philippines** (approx. 8.36
 
 > ⚠️ Change all default passwords immediately after first login.
 
+⚠️ Challenges and Issues Encountered During Development
+
+During the development of the system, the team faced several technical and resource-related challenges:
+
+1. Login and Account Creation Bugs
+We experienced difficulties debugging issues in the login and account creation modules. At times, the system would unexpectedly crash or behave inconsistently during authentication processes.
+2. File Corruption
+Some project files became corrupted without warning, causing delays and requiring rework to restore lost code and functionality.
+3. XAMPP MySQL Not Running
+There were instances where MySQL in XAMPP failed to start, preventing database access and interrupting system testing and development.
+4. Limited Access to Devices
+The team had a shortage of laptops and desktop computers. We often had to share a single device among multiple members, which slowed down progress and made collaboration more difficult.
+5. Design Rendering Issues
+While working on the user interface, there were times when changes in the design did not appear or reflect properly, making it hard to verify updates.
+6. Internet Connectivity Issues
+Unstable or slow internet connection affected downloading libraries, accessing documentation, and testing certain features.
+7. Version Control Conflicts
+Without proper version control (e.g., Git), merging code from different members sometimes caused conflicts or overwrote others’ work.
+8. Inconsistent Data Simulation Behavior
+The simulated data occasionally produced unrealistic values, making testing less reliable.
+9. Browser Compatibility Issues
+Some features worked differently across browsers, causing layout or functionality inconsistencies.
+10. Session Handling Problems
+Users were sometimes logged out unexpectedly or sessions expired too quickly due to misconfigured session settings.
+11. Database Connection Errors
+Incorrect configurations or sudden disconnections occasionally caused failures in fetching or storing data.
+12. Performance Slowdowns
+As more features were added, the system sometimes became slower, especially when loading charts or map data.
+13. Lack of Testing Tools and Debugging Experience
+Limited experience with debugging tools made it harder to quickly identify and fix errors.
+14. Time Constraints
+Tight academic deadlines added pressure, limiting the time available for thorough testing and refinement.
 
 
-## 📁 Project Structure
+## 📁 Project Structure.
 
-```
+---
 ORGANIC-MATTER-DETECTION-IN-TILAPIA/
 │
 ├─ admin/
