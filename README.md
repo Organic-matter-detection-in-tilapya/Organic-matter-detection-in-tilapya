@@ -163,36 +163,36 @@ Tight academic deadlines added pressure, limiting the time available for thoroug
 
 ## 📁 Project Structure.
 
----
+## 📁 Project Structure
+
+```
 ORGANIC-MATTER-DETECTION-IN-TILAPIA/
 │
-├─ admin/
-│  └─ admin_dashboard.php
+├── admin/
+│   └── admin_dashboard.php
 │
-├─ api/
-│  └─ live_data.php
+├── api/
+│   └── live_data.php
 │
-├─ auth/
-│  ├─ create_hashes.php
-│  ├─ login.php
-│  └─ logout.php
+├── auth/
+│   ├── create_hashes.php
+│   ├── login.php
+│   └── logout.php
 │
-├─ config/
-│  ├─ config.php
-│  └─ db_connect.php
+├── config/
+│   ├── config.php
+│   └── db_connect.php
 │
-├─ database/
-│  └─ organic.sql
+├── database/
+│   └── organic.sql
 │
-├─ manager/
-│  ├─ manager_dashboard.php
-│  └─ simulate_reading.php
+├── manager/
+│   ├── manager_dashboard.php
+│   └── simulate_reading.php
 │
-├─ staff/
-│  └─ staff_dashboard.php
+├── staff/
+│   └── staff_dashboard.php
 │
-├─ index.php
-└─ README.md
+├── index.php
+└── README.md
 ```
-
----
